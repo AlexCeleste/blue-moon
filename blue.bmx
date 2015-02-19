@@ -38,6 +38,7 @@ stk.argv = Null	'may want to add space?
 stk.retv = Null
 stk.argc = 0
 stk.retc = 0
+Print Hex(Int(Byte Ptr(stk)))
 
 Print "running..."
 Local t:Int = MilliSecs()
@@ -110,7 +111,7 @@ Type BlueVM
 				db[k] = ktbl[buf[foff + 7 + uc * 2 + k]]
 			Next
 			
-			Local ioff:Int = 7 + 2 * uc + kc ; ib = Int Ptr(Byte Ptr(b) + 4) + 8
+			Local ioff:Int = 7 + 2 * uc + kc ; ib = Int Ptr(Byte Ptr(b) + BlueJIT.BYTECODE_INC)
 			
 			For Local i:Int = 0 Until ic * 2
 				ib[i] = buf[foff + ioff + i]
@@ -156,9 +157,9 @@ End Extern
 Public
 
 Type BlueJIT Final
-	Const BLOCKSZ:Int = BlueVMMemory.FUNCSIZE, PROLOGUESZ:Int = 25, ISIZE:Int = 5
+	Const PROLOGUESZ:Int = 25, ISIZE:Int = 5
 	
-	Global opTbl:Int(s:Stack, b:Byte Ptr)[], opc:BlueOpcode
+	Global opTbl:Int(s:Stack, b:Byte Ptr, r:Byte Ptr)[], opc:BlueOpcode
 	Global Prologue:Int[] = [ ..
 		$90, $90, ..
 		$8b, $44, $24, $04, ..                     'mov 4(%esp), %eax
@@ -167,7 +168,6 @@ Type BlueJIT Final
 		$89, $64, $24, $fc, ..                     'mov %esp, -4(%esp)
 		$83, $ec, $0c..                            'sub $12, %esp
 	]
-	Global trueReturn:Byte Ptr
 	
 	Function Compile:Byte Ptr(vm:BlueVM, ins:Byte Ptr, icount:Int, bytecode:Bytecode)
 		?Not x86
@@ -177,143 +177,126 @@ Type BlueJIT Final
 		If opTbl = Null Then InitOpTbl()
 		
 		Local sz:Int = PROLOGUESZ + icount * ISIZE
-		sz :+ (sz / BLOCKSZ) * ISIZE
 		
 		' allocate executable space
-		Local blockCount:Int = Ceil(sz / Double(BLOCKSZ)), block:Byte Ptr[blockCount]
-		For Local b:Int = 0 Until blockCount
-			block[b] = vm.mem.AllocCodeBlock()
-		Next
+		Local blocks:Int[] = vm.mem.AllocCodeBlock(PROLOGUESZ + icount * ISIZE)
+		Local code:Byte Ptr = Byte Ptr(blocks[0]), rsize:Int = blocks[1] - (blocks[1] Mod ISIZE)
 		
 		For Local p:Int = 0 Until PROLOGUESZ	'emplace prologue (used for calling in from native only)
-			block[0][p] = Prologue[p]
+			code[p] = Prologue[p]
 		Next
-		Byte Ptr Ptr(block[0] + 14)[0] = ins	'replace the ########
+		Byte Ptr Ptr(code + 14)[0] = ins	'replace the ########
+		code :+ PROLOGUESZ ; rsize :- PROLOGUESZ	'easier to not have to take this into account below
+		
+		Local codePage:Int Ptr = Int Ptr(Int(code) & ((Int(2^12)-1) Shl 20))	'return-to-native for the page
+		codePage[1] = $c30cc483	'add $12, %esp ; ret  - i.e. restore the stack to normal
 		
 		' generate machine code!
-		Local pos:Int = PROLOGUESZ, sizedec:Int = icount + PROLOGUESZ / ISIZE
-		For Local b:Int = 0 Until block.Length
-			For Local i:Int = 0 Until BLOCKSZ - ISIZE Step ISIZE	'emplace opcode calls
-				If sizedec = 0 Then Exit
-				If sizedec <= icount
-					block[b][i] = $e8
-					Local func:Byte Ptr = opTbl[ins[(icount - sizedec) * 8]]
-					Byte Ptr Ptr(block[b] + i + 1)[0] = func - Int(block[b] + i + ISIZE)
-				EndIf
-				sizedec :- 1
+		Repeat
+			
+			For Local i:Int = 0 Until rsize / ISIZE	'emplace opcode calls and supporting bytecode data
+				Local codep:Byte Ptr = code + i * ISIZE, bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
+				codep[0] = $e8	'call
+				Local bi:Int = i * 8, op:Int = ins[bi], ip:Int Ptr = Int Ptr(ins + bi), func:Byte Ptr = opTbl[op]
+				Byte Ptr Ptr(codep + 1)[0] = func - Int(codep + ISIZE)
+				
+				Select op
+					Case opc.LOADSI
+						bytecodep[0] = ins[bi + 1] ; Int Ptr(bytecodep + 1)[0] = Int Ptr(ins + bi)[1]
+						
+					Case opc.LOADK
+						Local kp:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars) + ip[1]
+						bytecodep[0] = ins[bi + 1] ; Double Ptr Ptr(bytecodep + 1)[0] = kp
+						
+					Case opc.JIF, opc.JNOT
+						bytecodep[0] = ins[bi + 1]
+						Int Ptr(bytecodep + 1)[0] = Int(codep) + ISIZE * Int Ptr(ins + bi)[1]
+						
+					Case opc.JMP
+						codep[0] = $e9	'use a true jump
+						Int Ptr(codep + 1)[0] = ISIZE * (Int Ptr(ins + bi)[1] - 1)
+						
+					Default	'binary operations A = B op C
+						bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2] ; bytecodep[2] = Int Ptr(ins + bi)[1]
+				End Select
 			Next
-			If b < block.Length - 1	'emplace jumps between blocks
-				block[b][BLOCKSZ - ISIZE] = $e9
-				Byte Ptr Ptr(block[b] + (BLOCKSZ - ISIZE) + 1)[0] = (block[b] + BLOCKSZ) - Int(block[b + 1])
-			EndIf
-		Next
-		If sz Mod BLOCKSZ = 0	'if necessary add the final instruction
-			Local blkp:Byte Ptr = block[block.Length - 1] + (BLOCKSZ - ISIZE)
-			blkp[0] = $e8
-			Local func:Byte Ptr = opTbl[ins[(icount - 1) * 8]]
-			Byte Ptr Ptr(blkp + 1)[0] = func - Int(blkp + ISIZE)
-		EndIf
+			
+			Exit	'deal with overflowing code sections here
+		Forever
 		
-		'replace offsets in the bytecode with actual targets while we have the blocks together
-		For Local i:Int = 0 Until icount
-			Local ip:Int Ptr = Int Ptr(ins + i * 8)
-			Select ins[i * 8]
-				Case opc.JMP, opc.JIF, opc.JNOT		'jumps can use the machine code pointers
-					Local tgt:Int = i + ip[1], tgtofs:Int = tgt * ISIZE + PROLOGUESZ
-					Local tgtblk:Byte Ptr = block[tgtofs / (BLOCKSZ - ISIZE)], dst:Byte Ptr = tgtblk + tgtofs Mod (BLOCKSZ - ISIZE)
-					
-					If ins[i * 8] = opc.JMP 'need to provide both the machine code jump and the bytecode jump
-						ip[0] = Int(dst)		'JMP takes no operands which is handy
-						ip[1] :* IP_INCR
-					Else
-						Local disp:Int = ip[1], r:Int = Byte Ptr(ip)[1]
-						ip[1] = Int(dst)		'JIF/JNOT need a byte preserved for the operand register
-						ip[0] = ((disp * IP_INCR) Shl 8) | (r & $FF)	' using the lowest one lets us sign-extend the disp. more easily
-					EndIf
-					
-				Case opc.LOADK	'get the direct addresses of k-table slots
-					Local kp:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars) + ip[1]
-					ip[1] = Int(kp)
-			End Select
-		Next
-		
-		trueReturn = Byte Ptr((Int(block[0]) & ((Int(2^12)-1) Shl 20)) + vm.mem.PAGESZ - 4)	'sneak it in the spare rwx space
-		Int Ptr(trueReturn)[0] = $c30cc483	'add $12, %esp ; ret  - i.e. restore the stack to normal
-		
-		Return block[0]
+		Return code - PROLOGUESZ
 	End Function
 	
 	
 	Const STACKFRAMESZ:Int = 8 * 4, BYTECODESZ:Int = 8 * 4, STACKFRAME_INC:Int = STACKFRAMESZ + 4, BYTECODE_INC:Int = BYTECODESZ + 4
-	Const IP_INCR:Int = 8
+	Const IP_OFFSET:Int = BlueVMMemory.PAGESZ - ISIZE
 	
 		
-	Function MOV(stk:Stack, bytecode:Byte Ptr)
+	Function MOV(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "MOV      // ip:  " + stk.IP
 		'note (here and below); vars must take into account the vtbl offset, so that converting from a typed pointer can be a simple cast (faster)
-		Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
-		varp[ins[1]] = varp[ins[2]]
-		stk.IP :+ IP_INCR
+	'	Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
+	'	varp[ins[1]] = varp[ins[2]]
+	'	stk.IP :+ IP_INCR
 	End Function
-	Function GETLC(stk:Stack, bytecode:Byte Ptr)
+	Function GETLC(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function SETLC(stk:Stack, bytecode:Byte Ptr)
+	Function SETLC(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "SETLC    // ip:  " + stk.IP
-		Local varp:Double Ptr = stk.varp
-		Local ins:Byte Ptr = (bytecode + stk.IP)
-		Double Ptr Ptr(varp + ins[1])[0][0] = varp[ins[2]]
-		stk.IP :+ IP_INCR
+	'	Local varp:Double Ptr = stk.varp
+	'	Local ins:Byte Ptr = (bytecode + stk.IP)
+	'	Double Ptr Ptr(varp + ins[1])[0][0] = varp[ins[2]]
+	'	stk.IP :+ IP_INCR
 	End Function
-	Function LOADK(stk:Stack, bytecode:Byte Ptr)
+	Function LOADK(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "LOADK    // ip:  " + stk.IP
-		Local ins:Byte Ptr = (bytecode + stk.IP), kp:Double Ptr = Double Ptr Ptr(ins)[1]
-		stk.varp[ins[1]] = kp[0]
-		stk.IP :+ IP_INCR
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET, kp:Double Ptr = Double Ptr Ptr(rp + 1)[0]
+		stk.varp[rp[0]] = kp[0]
 	End Function
-	Function LOADSI(stk:Stack, bytecode:Byte Ptr)
-		Print "LOADSI   // ip:  " + stk.IP
-		Local ins:Byte Ptr = (bytecode + stk.IP), val:Int = Int Ptr(ins)[1]
-		stk.varp[ins[1]] = Double(val)
-		stk.IP :+ IP_INCR
+	Function LOADSI(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
+	'	Print "LOADSI   // ip:  " + stk.IP
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
+		Local val:Int = Int Ptr(rp + 1)[0]
+		stk.varp[rp[0]] = Double(val)
 	End Function
-	Function LOADBOOL(stk:Stack, bytecode:Byte Ptr)
+	Function LOADBOOL(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "LOADBOOL // ip:  " + stk.IP
-		Local ins:Byte Ptr = (bytecode + stk.IP), vp:Int Ptr = Int Ptr(stk.varp + ins[1])
-		vp[1] = BlueTypeTag.NANBOX | BlueTypeTag.BOOL
-		vp[0] = Int Ptr(ins)[1]
-		stk.IP :+ IP_INCR
+	'	Local ins:Byte Ptr = (bytecode + stk.IP), vp:Int Ptr = Int Ptr(stk.varp + ins[1])
+	'	vp[1] = BlueTypeTag.NANBOX | BlueTypeTag.BOOL
+	'	vp[0] = Int Ptr(ins)[1]
+	'	stk.IP :+ IP_INCR
 	End Function
-	Function LOADNIL(stk:Stack, bytecode:Byte Ptr)
+	Function LOADNIL(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "LOADNIL  // ip:  " + stk.IP
-		Local ins:Byte Ptr = (bytecode + stk.IP)
-		Int Ptr(stk.varp + ins[1])[1] = BlueTypeTag.NANBOX | BlueTypeTag.NIL
-		stk.IP :+ IP_INCR
+	'	Local ins:Byte Ptr = (bytecode + stk.IP)
+	'	Int Ptr(stk.varp + ins[1])[1] = BlueTypeTag.NANBOX | BlueTypeTag.NIL
+	'	stk.IP :+ IP_INCR
 	End Function
 	
-	Function GETTAB(stk:Stack, bytecode:Byte Ptr)
+	Function GETTAB(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function GETTABSI(stk:Stack, bytecode:Byte Ptr)
+	Function GETTABSI(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function SETTAB(stk:Stack, bytecode:Byte Ptr)
+	Function SETTAB(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function SETTABSI(stk:Stack, bytecode:Byte Ptr)
+	Function SETTABSI(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function GETTABI(stk:Stack, bytecode:Byte Ptr)
+	Function GETTABI(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function SETTABI(stk:Stack, bytecode:Byte Ptr)
+	Function SETTABI(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function GETUPV(stk:Stack, bytecode:Byte Ptr)
+	Function GETUPV(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "GETUPV   // ip:  " + stk.IP
-		Local varp:Double Ptr = stk.varp, upvp:Double Ptr = Double Ptr(Byte Ptr(stk) + STACKFRAME_INC)
-		Local ins:Byte Ptr = (bytecode + stk.IP), valp:Double Ptr = Double Ptr Ptr(upvp + ins[2])[0]
-		varp[ins[1]] = valp[0]
-		stk.IP :+ IP_INCR
+	'	Local varp:Double Ptr = stk.varp, upvp:Double Ptr = Double Ptr(Byte Ptr(stk) + STACKFRAME_INC)
+	'	Local ins:Byte Ptr = (bytecode + stk.IP), valp:Double Ptr = Double Ptr Ptr(upvp + ins[2])[0]
+	'	varp[ins[1]] = valp[0]
+	'	stk.IP :+ IP_INCR
 	End Function
-	Function SETUPV(stk:Stack, bytecode:Byte Ptr)
+	Function SETUPV(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function NEWTAB(stk:Stack, bytecode:Byte Ptr)
+	Function NEWTAB(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function CLOSURE(stk:Stack, bytecode:Byte Ptr)
+	Function CLOSURE(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "CLOSURE  // ip:  " + stk.IP
 		Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(Byte Ptr Ptr(bytecode)[-1])
@@ -332,95 +315,89 @@ Type BlueJIT Final
 		Byte Ptr Ptr(closure)[0] = Byte Ptr(cbytecode)
 		
 		d[0] = Int(closure) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.FUN
-		stk.IP :+ IP_INCR
 	End Function
-	Function NEWUPV(stk:Stack, bytecode:Byte Ptr)
+	Function NEWUPV(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "NEWUPV   // ip:  " + stk.IP
-		Local ins:Byte Ptr = (bytecode + stk.IP)
-		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(Byte Ptr Ptr(bytecode)[-1])
-		Local upv:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.UPV), d:Int Ptr = Int Ptr(stk.varp + ins[1])
-		d[0] = Int(upv) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.UPV
-		stk.IP :+ IP_INCR
+	'	Local ins:Byte Ptr = (bytecode + stk.IP)
+	'	Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(Byte Ptr Ptr(bytecode)[-1])
+	'	Local upv:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.UPV), d:Int Ptr = Int Ptr(stk.varp + ins[1])
+	'	d[0] = Int(upv) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.UPV
+	'	stk.IP :+ IP_INCR
 	End Function
 	
-	Function ADD(stk:Stack, bytecode:Byte Ptr)
-		Print "ADD      // ip:  " + stk.IP
-		Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
-		
-		Local d:Double Ptr = varp + ins[1]
-		Local r:Int Ptr = Int Ptr(varp + ins[2])
-		Local l:Int Ptr = Int Ptr(varp + Int Ptr(ins)[1])
+	Function ADD(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
+	'	Print "ADD      // ip:  " + stk.IP
+		Local varp:Double Ptr = stk.varp
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
+	'	Print "  " + rp[0] + " " + rp[1] + " " + rp[2]
+		Local d:Double Ptr = varp + rp[0]'ins[1]
+		Local r:Int Ptr = Int Ptr(varp + rp[1])'ins[2])
+		Local l:Int Ptr = Int Ptr(varp + rp[2])'Int Ptr(ins)[1])
 		If l[1] & BlueTypeTag.NANBOX = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX = BlueTypeTag.NANBOX
 			DebugStop
 		Else
 			d[0] = Double Ptr(l)[0] + Double Ptr(r)[0]
-			stk.IP :+ IP_INCR
 		EndIf
 	End Function
-	Function SUB(stk:Stack, bytecode:Byte Ptr)
+	Function SUB(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function MUL(stk:Stack, bytecode:Byte Ptr)
+	Function MUL(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function DIV(stk:Stack, bytecode:Byte Ptr)
+	Function DIV(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function NMOD(stk:Stack, bytecode:Byte Ptr)
+	Function NMOD(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function POW(stk:Stack, bytecode:Byte Ptr)
+	Function POW(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function CAT(stk:Stack, bytecode:Byte Ptr)
+	Function CAT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function IDIV(stk:Stack, bytecode:Byte Ptr)
+	Function IDIV(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function BAND(stk:Stack, bytecode:Byte Ptr)
+	Function BAND(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function BOR(stk:Stack, bytecode:Byte Ptr)
+	Function BOR(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function BXOR(stk:Stack, bytecode:Byte Ptr)
+	Function BXOR(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function BSHL(stk:Stack, bytecode:Byte Ptr)
+	Function BSHL(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function BSHR(stk:Stack, bytecode:Byte Ptr)
+	Function BSHR(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function UNM(stk:Stack, bytecode:Byte Ptr)
+	Function UNM(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function LNOT(stk:Stack, bytecode:Byte Ptr)
+	Function LNOT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function ALEN(stk:Stack, bytecode:Byte Ptr)
+	Function ALEN(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function BNOT(stk:Stack, bytecode:Byte Ptr)
+	Function BNOT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function UNP(stk:Stack, bytecode:Byte Ptr)
+	Function UNP(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function EQ(stk:Stack, bytecode:Byte Ptr)
-		Print "EQ       // ip:  " + stk.IP
-		Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
-		Local r:Double = varp[ins[2]]
-		Local l:Double = varp[Int Ptr(ins)[1]]
-		varp[ins[1]] = l = r
-		stk.IP :+ IP_INCR
+	Function EQ(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
+	'	Print "EQ       // ip:  " + stk.IP
+		Local varp:Double Ptr = stk.varp', ins:Byte Ptr = (bytecode + stk.IP)
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
+	'	Print "  " + rp[0] + " " + rp[1] + " " + rp[2]
+		Local r:Double = varp[rp[1]]'ins[2]]
+		Local l:Double = varp[rp[2]]'Int Ptr(ins)[1]]
+	'	Print "  " + varp[rp[1]] + " " + varp[rp[2]]
+		varp[rp[0]] = l = r
 	End Function
-	Function LT(stk:Stack, bytecode:Byte Ptr)
+	Function LT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function LEQ(stk:Stack, bytecode:Byte Ptr)
+	Function LEQ(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
 	
 	Function JMP(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
-		Print "JMP      // ip:  " + stk.IP
-		Local target:Int = Int Ptr(bytecode + stk.IP)[0]
-		Local disp:Int = Int Ptr(bytecode + stk.IP)[1]
-		stk.IP :+ disp
-		Int Ptr(retptr)[-4] = target
+		Print "wait, why are we here?"
 	End Function
 	Function JIF(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
-		Print "JIF      // ip:  " + stk.IP
-		Local ins:Byte Ptr = (bytecode + stk.IP)
-		If stk.varp[ins[0]] <> 0
-			Local target:Int = Int Ptr(ins)[1]
-			Local disp:Int = Int Ptr(ins)[0] Sar 8
-			stk.IP :+ disp
+	'	Print "JIF      // ip:  " + stk.IP
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
+	'	Print "  " + rp[0] + " " + Int Ptr(rp + 1)[0]
+		If stk.varp[rp[0]] <> 0
+			Local target:Int = Int Ptr(rp + 1)[0]'ins)[1]
 			Int Ptr(retptr)[-4] = target
-		Else
-			stk.IP :+ IP_INCR
 		EndIf
 	End Function
 	Function JNOT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
@@ -437,25 +414,29 @@ Type BlueJIT Final
 	End Function
 	Function RET:Byte Ptr(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "RET      // ip:  " + stk.IP
-		Local varp:Double Ptr = stk.varp'Byte Ptr(stk) + vars
-		Local ins:Byte Ptr = (bytecode + stk.IP)
+		Local varp:Double Ptr = stk.varp
+		Local rp0:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0], rp:Byte Ptr = rp0 + IP_OFFSET
+	'	Print "  " + rp[0] + " " + Int Ptr(rp + 1)[0]
+	'	Local ins:Byte Ptr = (bytecode + stk.IP)
 		
 		Local oldStk:Stack = stk.prevBase
-		Local retv:Byte Ptr = varp + ins[1]
+		Local retv:Byte Ptr = varp + rp[0]'ins[1]
 		If oldStk
-			oldStk.retv = retv
-			oldStk.retc = Int Ptr(ins)[1]
-			Byte Ptr Ptr(retptr)[-4] = stk.retIP
-			Byte Ptr Ptr(retptr)[-3] = Byte Ptr(oldStk)
-			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(oldStk.func) + BYTECODE_INC
+	'		oldStk.retv = retv
+	'		oldStk.retc = Int Ptr(ins)[1]
+	'		Byte Ptr Ptr(retptr)[-4] = stk.retIP
+	'		Byte Ptr Ptr(retptr)[-3] = Byte Ptr(oldStk)
+	'		Byte Ptr Ptr(retptr)[-2] = Byte Ptr(oldStk.func) + BYTECODE_INC
 		Else	'return to native code
-			Byte Ptr Ptr(retptr)[-4] = truereturn
+			Local codePage:Byte Ptr = Byte Ptr(Int(rp0) & ((Int(2^12)-1) Shl 20))
+			Print Hex(Int(codepage))
+			Byte Ptr Ptr(retptr)[-4] = codePage + 4
 			Return retv
 		EndIf
 	End Function
 	Function RETVA(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function POSTCALL(stk:Stack, bytecode:Byte Ptr)
+	Function POSTCALL(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	'	Print "POSTCALL // ip:  " + stk.IP
 		Local varp:Byte Ptr = stk.varp'Byte Ptr(stk) + vars
 		Local ins:Byte Ptr = (bytecode + stk.IP)
@@ -464,14 +445,12 @@ Type BlueJIT Final
 			(Double Ptr(varp) + ins[1])[r] = Double Ptr(stk.retv)[r]
 			Print "  return " + r + ": " + Double Ptr(stk.retv)[r]
 		Next
-		
-		stk.IP :+ IP_INCR
 	End Function
-	Function VARARG(stk:Stack, bytecode:Byte Ptr)
+	Function VARARG(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function VAINIT(stk:Stack, bytecode:Byte Ptr)
+	Function VAINIT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
-	Function CALLINIT(stk:Stack, bytecode:Byte Ptr)
+	Function CALLINIT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
 	
 	
@@ -511,7 +490,7 @@ Type BlueJIT Final
 				Print "  val: " + Double Ptr Ptr(Double Ptr(closure) + 1 + up)[0][0]
 			Next
 			
-			stk.IP :+ IP_INCR	'note that the following OVERWRITE THE PARAMETERS (in release mode), so no touching stk from here on
+			'note that the following OVERWRITE THE PARAMETERS (in release mode), so no touching stk from here on
 			Byte Ptr Ptr(retptr)[-4] = newBC.mcode' + BlueJIT.PROLOGUESZ
 			Byte Ptr Ptr(retptr)[-3] = Byte Ptr(newStk)
 			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(newBC) + BYTECODE_INC
@@ -532,17 +511,11 @@ Type BlueJIT Final
 			ADD, SUB, MUL, DIV, NMOD, POW, CAT, ..
 			IDIV, BAND, BOR, BXOR, BSHL, BSHR, ..
 			UNM, LNOT, ALEN, BNOT, UNP, ..
-			EQ, LT, LEQ]
-		Local ops1:Int(s:Stack, b:Byte Ptr, r:Byte Ptr)[] = [JMP, JIF, JNOT, CALL, TCALL]', RET, RETVA]
-		Local ops2:Int(s:Stack, b:Byte Ptr)[] =  [POSTCALL, VARARG, VAINIT, CALLINIT]
-		opTbl = opTbl[..50]
-		For Local op:Int = opc.JMP To opc.TCALL'RETVA		'this is a nasty way to do things
-			opTbl[op] = Byte Ptr(ops1[op - opc.JMP])
-		Next
-		opTbl[opc.RET] = Byte Ptr(RET) ; opTbl[opc.RETVA] = Byte Ptr(RETVA)
-		For Local op:Int = opc.POSTCALL To opc.CALLINIT
-			opTbl[op] = ops2[op - opc.POSTCALL]
-		Next
+			EQ, LT, LEQ, ..
+			JMP, JIF, JNOT, CALL, TCALL, RETVA, RETVA, ..	'not a mistake: RET doesn't fit but we need the spacer
+			POSTCALL, VARARG, VAINIT, CALLINIT]
+		
+		opTbl[opc.RET] = Byte Ptr(RET)
 	End Function
 	
 	Function Identity:Byte Ptr(b:Byte Ptr)

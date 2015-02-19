@@ -1,7 +1,7 @@
 --[ [
 local x = 0
 --local y = 600000
-while x ~= 5 do--10000000 do
+while x ~= 10000000 do
 	x = x + 1
 end--]]
 --[[

@@ -111,8 +111,8 @@ Type BlueVMMemory Final
 		newSpace = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpace = AlignedAlloc(EDENSIZE, PAGESZ)
 		newPtr = 0
 		
-		codeFreeList = Byte Ptr(0)
-		
+	'	codeFreeList = Byte Ptr(0)
+		AddCodePage()
 		AddPage(oldStrSpace, PAGEMETASZ)
 		AddPage(oldPtrSpace, PAGEBITMAPSZ)
 	End Method
@@ -121,14 +121,17 @@ Type BlueVMMemory Final
 	End Method
 	
 	Method AddCodePage()
-		codeSpace = [AlignedAlloc(PAGESZ, PAGESZ)] + codeSpace
+	'	codeSpace = [AlignedAlloc(PAGESZ, PAGESZ)] + codeSpace
+	'	PageSetRWX(codeSpace[0], PAGESZ)
+	'	Local last:Int = PAGESZ - (FUNCSIZE + (PAGESZ Mod FUNCSIZE))
+	'	For Local blk:Int = 0 Until last Step FUNCSIZE
+	'		Byte Ptr Ptr(codeSpace[0] + blk)[0] = (codeSpace[0] + blk + FUNCSIZE)
+	'	Next
+	'	Byte Ptr Ptr(codeSpace[0] + last)[0] = codeFreeList
+	'	codeFreeList = codeSpace[0]
+		codeSpace = [AlignedAlloc(2 * PAGESZ, PAGESZ)] + codeSpace
 		PageSetRWX(codeSpace[0], PAGESZ)
-		Local last:Int = PAGESZ - (FUNCSIZE + (PAGESZ Mod FUNCSIZE))
-		For Local blk:Int = 0 Until last Step FUNCSIZE
-			Byte Ptr Ptr(codeSpace[0] + blk)[0] = (codeSpace[0] + blk + FUNCSIZE)
-		Next
-		Byte Ptr Ptr(codeSpace[0] + last)[0] = codeFreeList
-		codeFreeList = codeSpace[0]
+		Int Ptr(codeSpace[0])[0] = PAGEMETASZ
 	End Method
 	Method AddPage:Byte Ptr(space:Byte Ptr[] Var, init:Int, exec:Int = False)
 		Local p:Byte Ptr = AlignedAlloc(PAGESZ, PAGESZ)	'x86: assume this returns zero-initialized result already
@@ -139,20 +142,29 @@ Type BlueVMMemory Final
 	Method HeaderSize:Int(space:Byte Ptr[])
 		Select space
 			Case oldPtrSpace ; Return PAGEBITMAPSZ
-			Case oldStrSpace ; Return PAGEMETASZ
-			Default ; Return 0
+			Default          ; Return PAGEMETASZ
 		End Select
 	End Method
 	
-	Method AllocCodeBlock:Byte Ptr()
-		If Not codeFreeList Then AddCodePage()
-		Local b:Byte Ptr = codeFreeList
-		codeFreeList = Byte Ptr Ptr(codeFreeList)[0]
-		Return b
-	End Method
-	Method FreeCodeBlock(b:Byte Ptr)
-		Byte Ptr Ptr(b)[0] = codeFreeList
-		codeFreeList = b
+'	Method AllocCodeBlock:Byte Ptr()
+'		If Not codeFreeList Then AddCodePage()
+'		Local b:Byte Ptr = codeFreeList
+'		codeFreeList = Byte Ptr Ptr(codeFreeList)[0]
+'		Return b
+'	End Method
+'	Method FreeCodeBlock(b:Byte Ptr)
+'		Byte Ptr Ptr(b)[0] = codeFreeList
+'		codeFreeList = b
+'	End Method
+	Method AllocCodeBlock:Int[](sz:Int)	'this can return less than the requested size; up to the JIT to request more
+		Local page:Byte Ptr = codeSpace[0], pNewPtr:Int = Int Ptr(page)[0]
+		If pNewPtr + sz > PAGESZ
+			AddCodePage() ; Int Ptr(page)[0] = PAGESZ
+			Return [Int(page) + pNewPtr, PAGESZ - pNewPtr]
+		Else
+			Int Ptr(page)[0] :+ sz
+			Return [Int(page) + pNewPtr, sz]
+		EndIf
 	End Method
 	
 	Method AllocObject:Byte Ptr(sz:Int, tag:Int)
