@@ -78,7 +78,7 @@ Type BlueVM
 			If sz > 2	'strings have size > 2
 				Local length:Double, lp:Int Ptr = Int Ptr(Varptr(length))
 				lp[0] = buf[koff] ; lp[1] = buf[koff + 1]
-				Local s:Byte Ptr = mem.AllocObjectOldStr(Ceil(length / 2) * 4, BlueTypeTag.STR)
+				Local s:Byte Ptr = mem.AllocObjectOldSpace(mem.oldStrSpace, Ceil(length / 2) * 4, BlueTypeTag.STR)
 				For Local c:Int = 0 Until Ceil(length / 2)
 					Int Ptr(s)[c] = buf[koff + 2 + c]
 				Next
@@ -95,7 +95,7 @@ Type BlueVM
 			Local foff:Int = buf[3 + f]
 			Local ic:Int = buf[foff + 1], kc:Int = buf[foff + 2], pc:Int = buf[foff + 3], uc:Int = buf[foff + 5], fsz:Int = buf[foff + 6]
 			
-			Local b:Bytecode = BPtoBC(mem.AllocObjectOldStr((8 + 2 * uc + 2 * kc + 2 * ic) * 4, BlueTypeTag.HEAVY))
+			Local b:Bytecode = BPtoBC(mem.AllocObjectOldSpace(mem.oldStrSpace, (8 + 2 * uc + 2 * kc + 2 * ic) * 4, BlueTypeTag.HEAVY))
 			b.idMod = idMod ; b.kcount = kc ; b.pcount = pc ; b.upvars = uc
 			b.frameSz = BlueJIT.STACKFRAMESZ + b.upvars * 8 + fsz * 8 ; b.icount = ic ; b.vm = convert(Self)
 			
@@ -258,7 +258,7 @@ Type BlueJIT Final
 	Function GETLC(stk:Stack, bytecode:Byte Ptr)
 	End Function
 	Function SETLC(stk:Stack, bytecode:Byte Ptr)
-		Print "SETLC    // ip:  " + stk.IP
+	'	Print "SETLC    // ip:  " + stk.IP
 		Local varp:Double Ptr = stk.varp
 		Local ins:Byte Ptr = (bytecode + stk.IP)
 		Double Ptr Ptr(varp + ins[1])[0][0] = varp[ins[2]]
@@ -271,7 +271,7 @@ Type BlueJIT Final
 		stk.IP :+ IP_INCR
 	End Function
 	Function LOADSI(stk:Stack, bytecode:Byte Ptr)
-	'	Print "LOADSI   // ip:  " + stk.IP
+		Print "LOADSI   // ip:  " + stk.IP
 		Local ins:Byte Ptr = (bytecode + stk.IP), val:Int = Int Ptr(ins)[1]
 		stk.varp[ins[1]] = Double(val)
 		stk.IP :+ IP_INCR
@@ -392,7 +392,7 @@ Type BlueJIT Final
 	Function UNP(stk:Stack, bytecode:Byte Ptr)
 	End Function
 	Function EQ(stk:Stack, bytecode:Byte Ptr)
-	'	Print "EQ       // ip:  " + stk.IP
+		Print "EQ       // ip:  " + stk.IP
 		Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
 		Local r:Double = varp[ins[2]]
 		Local l:Double = varp[Int Ptr(ins)[1]]
@@ -405,14 +405,14 @@ Type BlueJIT Final
 	End Function
 	
 	Function JMP(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
-	'	Print "JMP      // ip:  " + stk.IP
+		Print "JMP      // ip:  " + stk.IP
 		Local target:Int = Int Ptr(bytecode + stk.IP)[0]
 		Local disp:Int = Int Ptr(bytecode + stk.IP)[1]
 		stk.IP :+ disp
 		Int Ptr(retptr)[-4] = target
 	End Function
 	Function JIF(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
-	'	Print "JIF      // ip:  " + stk.IP
+		Print "JIF      // ip:  " + stk.IP
 		Local ins:Byte Ptr = (bytecode + stk.IP)
 		If stk.varp[ins[0]] <> 0
 			Local target:Int = Int Ptr(ins)[1]
@@ -426,7 +426,7 @@ Type BlueJIT Final
 	Function JNOT(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
 	Function CALL(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
-		Print "CALL     // ip:  " + stk.IP
+	'	Print "CALL     // ip:  " + stk.IP
 		Local varp:Double Ptr = stk.varp, ins:Byte Ptr = (bytecode + stk.IP)
 		Local fp:Int Ptr = Int Ptr(varp + ins[1])
 		If Not PrepareCall(fp, stk, ins, varp, retptr)	'PrepareCall sets everything up so there's nothing else to do to make the call happen
@@ -456,7 +456,7 @@ Type BlueJIT Final
 	Function RETVA(stk:Stack, bytecode:Byte Ptr, retptr:Byte Ptr)
 	End Function
 	Function POSTCALL(stk:Stack, bytecode:Byte Ptr)
-		Print "POSTCALL // ip:  " + stk.IP
+	'	Print "POSTCALL // ip:  " + stk.IP
 		Local varp:Byte Ptr = stk.varp'Byte Ptr(stk) + vars
 		Local ins:Byte Ptr = (bytecode + stk.IP)
 		

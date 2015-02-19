@@ -77,7 +77,7 @@ Type BlueVMMemory Final
 	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, FUNCSIZE:Int = 120, BIGOBJECTSZ:Int = 500000
 		
 	Field gcroots:BlueGCNode, stack:Byte Ptr
-	Field newSpc:Byte Ptr, cpySpc:Byte Ptr, oldPtrSpc:Byte Ptr[], oldStrSpc:Byte Ptr[], bigSpc:Byte Ptr[]
+	Field newSpace:Byte Ptr, cpySpace:Byte Ptr, oldPtrSpace:Byte Ptr[], oldStrSpace:Byte Ptr[], bigSpace:Byte Ptr[]
 	Field toFinalize:BlueGCNode, weakTables:BlueGCNode
 	Field codeSpace:Byte Ptr[], codeFreeList:Byte Ptr
 	
@@ -108,13 +108,16 @@ Type BlueVMMemory Final
 	Method New()
 		stack = AlignedAlloc(STACKSZ, PAGESZ)
 		' add protection to end of stack
-		newSpc = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpc = AlignedAlloc(EDENSIZE, PAGESZ)
+		newSpace = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpace = AlignedAlloc(EDENSIZE, PAGESZ)
 		newPtr = 0
 		
 		codeFreeList = Byte Ptr(0)
 		
-		AddOldStrPage()	'we'll allocate bytecode straight into this, so it's needed
-		AddOldPtrPage()	'may as well never check for null
+		AddPage(oldStrSpace, PAGEMETASZ)
+		AddPage(oldPtrSpace, PAGEBITMAPSZ)
+	End Method
+	Method Delete()
+		' unmap a bunch of stuff
 	End Method
 	
 	Method AddCodePage()
@@ -127,19 +130,18 @@ Type BlueVMMemory Final
 		Byte Ptr Ptr(codeSpace[0] + last)[0] = codeFreeList
 		codeFreeList = codeSpace[0]
 	End Method
-	Method AddOldPtrPage:Byte Ptr()
-		Local l:Int = oldPtrSpc.Length, p:Byte Ptr = AlignedAlloc(PAGESZ, PAGESZ)
-		oldPtrSpc = [p] + oldPtrSpc
-		oldPtrSpc[l] = p
-		Int Ptr(p)[0] = PAGEBITMAPSZ
+	Method AddPage:Byte Ptr(space:Byte Ptr[] Var, init:Int, exec:Int = False)
+		Local p:Byte Ptr = AlignedAlloc(PAGESZ, PAGESZ)	'x86: assume this returns zero-initialized result already
+		space = [p] + space ; Int Ptr(p)[0] = init
+		If exec Then PageSetRWX(space[0], PAGESZ)
 		Return p
 	End Method
-	Method AddOldStrPage:Byte Ptr()
-		Local l:Int = oldStrSpc.Length, p:Byte Ptr = AlignedAlloc(PAGESZ, PAGESZ)
-		oldStrSpc = [p] + oldStrSpc
-		oldStrSpc[l] = p
-		Int Ptr(p)[0] = PAGEMETASZ
-		Return p
+	Method HeaderSize:Int(space:Byte Ptr[])
+		Select space
+			Case oldPtrSpace ; Return PAGEBITMAPSZ
+			Case oldStrSpace ; Return PAGEMETASZ
+			Default ; Return 0
+		End Select
 	End Method
 	
 	Method AllocCodeBlock:Byte Ptr()
@@ -157,33 +159,22 @@ Type BlueVMMemory Final
 		sz :+ 8 ; Local ret:Byte Ptr
 		If sz < BIGOBJECTSZ
 		'	If newPtr + sz > EDENSIZE Then Collect()
-			ret = newSpc + newPtr; newPtr :+ sz
+			ret = newSpace + newPtr; newPtr :+ sz
 		Else
 			ret = MemAlloc(sz)
 			If Not ret Then Throw BlueInterpretError.Make("unable to allocate memory for object")
-			bigSpc :+ [ret]
+			bigSpace :+ [ret]
 			' track as part of allocated memory?
 		EndIf
 		Int Ptr(ret)[0] = sz
 		Return ret + 8
 	End Method
-	Method AllocObjectOldPtr:Byte Ptr(sz:Int, tag:Int)
+	Method AllocObjectOldSpace:Byte Ptr(space:Byte Ptr[] Var, sz:Int, tag:Int)
 		sz :+ 8 ; If sz Mod 8 Then sz :+ (8 - sz Mod 8)
-		Local ret:Byte Ptr, page:Byte Ptr = oldPtrSpc[0]
+		Local ret:Byte Ptr, page:Byte Ptr = space[0]
 		Local pNewPtr:Int = Int Ptr(page)[0]
 		If pNewPtr + sz > PAGESZ
-			page = AddOldPtrPage() ; pNewPtr = Int Ptr(page)[0]
-		EndIf
-		ret = page + pNewPtr ; Int Ptr(page)[0] = pNewPtr + sz
-		Int Ptr(ret)[0] = sz
-		Return ret + 8
-	End Method
-	Method AllocObjectOldStr:Byte Ptr(sz:Int, tag:Int)
-		sz :+ 8 ; If sz Mod 8 Then sz :+ (8 - sz Mod 8)
-		Local ret:Byte Ptr, page:Byte Ptr = oldStrSpc[0]
-		Local pNewPtr:Int = Int Ptr(page)[0]
-		If pNewPtr + sz > PAGESZ
-			page = AddOldStrPage() ; pNewPtr = Int Ptr(page)[0]
+			page = AddPage(space, HeaderSize(space)) ; pNewPtr = Int Ptr(page)[0]
 		EndIf
 		ret = page + pNewPtr ; Int Ptr(page)[0] = pNewPtr + sz
 		Int Ptr(ret)[0] = sz
