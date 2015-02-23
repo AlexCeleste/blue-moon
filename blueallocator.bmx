@@ -47,7 +47,7 @@
 '   string uses this structure:
 '    [H][ 32b length ][ 32b hash ][ ceil(length/4) * 64b chars ]
 '   closure uses this structure:
-'    [H][ 32b bytecode ptr ][ N * 32b upvar ptrs ]
+'    [H][ 32b bytecode ptr ][32b][ N * 32b upvar ptrs ] (N rounded up to 2 for alignment)
 '   userdata uses this structure:
 '    [H][ 32b metatable ][ 32b value ]
 '   thread uses this structure:

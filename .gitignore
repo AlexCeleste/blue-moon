@@ -10,3 +10,4 @@ a.out
 tmp/*
 .bmx/*
 *.test.*
+*.debug
