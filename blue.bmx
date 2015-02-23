@@ -11,7 +11,22 @@ SuperStrict
 
 Import "bluecompiler.bmx"
 Import "blueallocator.bmx"
-
+Rem
+Import "blueasm.o"
+Extern
+Function ADD:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "ADD2"
+Function EQ:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "EQ2"
+Function GETUPV:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "GETUPV2"
+Function JIF:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "JIF2"
+Function LOADBOOL:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADBOOL2"
+Function LOADK:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADK2"
+Function LOADNIL:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADNIL2"
+Function LOADSI:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADSI2"
+Function MOV:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "MOV2"
+Function NEWUPV:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "NEWUPV2"
+Function SETLC:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "SETLC2"
+End Extern
+End Rem
 'Const file:String = "tests/checktable.lua"
 'Const file:String = "tests/mandelbrot.lua"
 'Const file:String = "tests/sieve.lua"
@@ -22,6 +37,21 @@ Const outFile:String = "out.lua.so"
 
 
 Print BlueCompiler.ShowBytecode(file)
+
+Rem
+BlueJIT.InitOpTbl()
+'BlueJIT.opTbl[BlueJIT.opc.ADD] = ADD
+'BlueJIT.opTbl[BlueJIT.opc.EQ] = EQ
+'BlueJIT.opTbl[BlueJIT.opc.GETUPV] = GETUPV
+'BlueJIT.opTbl[BlueJIT.opc.JIF] = JIF
+'BlueJIT.opTbl[BlueJIT.opc.LOADBOOL] = LOADBOOL
+'BlueJIT.opTbl[BlueJIT.opc.LOADK] = LOADK
+'BlueJIT.opTbl[BlueJIT.opc.LOADNIL] = LOADNIL
+'BlueJIT.opTbl[BlueJIT.opc.LOADSI] = LOADSI
+BlueJIT.opTbl[BlueJIT.opc.MOV] = MOV
+'BlueJIT.opTbl[BlueJIT.opc.NEWUPV] = NEWUPV
+'BlueJIT.opTbl[BlueJIT.opc.SETLC] = SETLC
+End Rem
 
 Local code:BlueBinary = BlueCompiler.CompileFileForLoad(file)
 Local vm:BlueVM = New BlueVM
@@ -299,6 +329,13 @@ Type BlueJIT Final
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function NEWTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "NEWTAB   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		Local tab:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.TBL)
+		Int Ptr(tab)[0] = 0 ; Int Ptr(tab)[1] = 0
+		Local d:Int Ptr = Int Ptr(varp + rp[0])
+		d[0] = Int(tab) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.TBL
 	End Function
 	Function CLOSURE(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "CLOSURE  //"
