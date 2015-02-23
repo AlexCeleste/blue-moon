@@ -31,7 +31,7 @@ Local tl:BlueLuaVal = vm.LoadObjectCode(code)
 Local stk:Stack = BlueJIT.BPtoS(vm.mem.stack)
 stk.retIP = Null ; stk.prevBase = Null
 Local vc:Int = 10, upvars:Int = 1
-stk.varp = Double Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
+stk.varp = Long Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
 stk.func = vm.funIndex[0]
 'stk.IP = 0
 stk.argv = Null	'may want to add space?
@@ -96,7 +96,7 @@ Type BlueVM
 			Local foff:Int = buf[3 + f]
 			Local ic:Int = buf[foff + 1], kc:Int = buf[foff + 2], pc:Int = buf[foff + 3], uc:Int = buf[foff + 5], fsz:Int = buf[foff + 6]
 			
-			Local b:Bytecode = BPtoBC(mem.AllocObjectOldSpace(mem.oldStrSpace, (8 + 2 * (uc + uc Mod 2) + 2 * kc + 2 * ic) * 4, BlueTypeTag.HEAVY))
+			Local b:Bytecode = BPtoBC(mem.AllocObjectOldSpace(mem.oldStrSpace, (8 + 2 * (uc + uc Mod 2) + 2 * kc + 2 * ic) * 4, BlueTypeTag.BCODE))
 			b.idMod = idMod ; b.kcount = kc ; b.pcount = pc ; b.upvars = uc + (uc Mod 2)	'round up for alignment
 			b.frameSz = BlueJIT.STACKFRAMESZ + b.upvars * 8 + fsz * 8 ; b.icount = ic ; b.vm = convert(Self)
 			
@@ -151,7 +151,7 @@ End Type
 Private
 Extern
 	Type Stack
-		Field retIP:Byte Ptr, prevBase:Stack, varp:Double Ptr, func:Bytecode, _IP:Int, argv:Byte Ptr, retv:Byte Ptr, argc:Short, retc:Short
+		Field retIP:Byte Ptr, prevBase:Stack, varp:Long Ptr, func:Bytecode, _IP:Int, argv:Long Ptr, retv:Long Ptr, argc:Short, retc:Short
 	End Type
 	Type Bytecode
 		Field mcode:Byte Ptr, idMod:Int, kcount:Int, pcount:Int, upvars:Int, frameSz:Int, icount:Int, vm:Byte Ptr
@@ -176,6 +176,8 @@ Type BlueJIT Final
 		?Not x86
 		RuntimeError "The Blue Moon JIT does not support your platform (x86-32 only at this time)"
 		?
+		Assert SizeOf(0:Long) = SizeOf(0:Double) And SizeOf(0:Int) = 4 And SizeOf(0:Long) = 8 And SizeOf(Byte Ptr(0)) = 4, ..
+			"assumptions about platform datatype sizes are invalid"
 		
 		If opTbl = Null Then InitOpTbl()
 		
@@ -243,26 +245,26 @@ Type BlueJIT Final
 	
 	Function MOV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "MOV      //"
-		Local varp:Double Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		varp[rp[0]] = varp[rp[1]]
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		varp[rp[0]] = varp[rp[1]]	'assigning through Double is unsafe as it can corrupt the bit pattern
 	End Function
 	Function GETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function SETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "SETLC    //"
-		Local varp:Double Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Double Ptr Ptr(varp + rp[0])[0][0] = varp[rp[1]]
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Long Ptr Ptr(varp + rp[0])[0][0] = varp[rp[1]]
 	End Function
 	Function LOADK(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "LOADK    //"
-		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Double Ptr = Double Ptr Ptr(rp + 1)[0]
-		stk.varp[rp[0]] = kp[0]
+		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, varp:Long Ptr = stk.varp + rp[0], kp:Long Ptr = Long Ptr Ptr(rp + 1)[0]
+		varp[0] = kp[0]
 	End Function
 	Function LOADSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "LOADSI   //"
 		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local val:Int = Int Ptr(rp + 1)[0]
-		stk.varp[rp[0]] = Double(val)
+		Double Ptr(stk.varp)[rp[0]] = Double(val)
 	End Function
 	Function LOADBOOL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "LOADBOOL //"
@@ -290,8 +292,8 @@ Type BlueJIT Final
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "GETUPV   //"
-		Local varp:Double Ptr = stk.varp, upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC)
-		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, valp:Double Ptr = Double Ptr(upvp[rp[1]])
+		Local varp:Long Ptr = stk.varp, upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC)
+		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, valp:Long Ptr = Long Ptr(upvp[rp[1]])
 		varp[rp[0]] = valp[0]
 	End Function
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
@@ -300,7 +302,7 @@ Type BlueJIT Final
 	End Function
 	Function CLOSURE(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "CLOSURE  //"
-		Local varp:Double Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local d:Int Ptr = Int Ptr(varp + rp[0])
 		Local cbytecode:Bytecode = vm.funIndex[Int Ptr(rp + 1)[0]], upvp:Int Ptr = Int Ptr(Byte Ptr(cbytecode) + BYTECODE_INC + 8 * cbytecode.icount)
@@ -328,9 +330,8 @@ Type BlueJIT Final
 	
 	Function ADD(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "ADD      //"
-		Local varp:Double Ptr = stk.varp
-		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Local d:Double Ptr = varp + rp[0]
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0])
 		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
 		If l[1] & BlueTypeTag.NANBOX = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX = BlueTypeTag.NANBOX
 			DebugStop
@@ -373,14 +374,11 @@ Type BlueJIT Final
 	Function UNP(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function EQ(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "EQ       // ip:  " + stk.IP
-		Local varp:Double Ptr = stk.varp', ins:Byte Ptr = (bytecode + stk.IP)
-		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
-	'	Print "  " + rp[0] + " " + rp[1] + " " + rp[2]
-		Local r:Double = varp[rp[1]]'ins[2]]
-		Local l:Double = varp[rp[2]]'Int Ptr(ins)[1]]
-	'	Print "  " + varp[rp[1]] + " " + varp[rp[2]]
-		varp[rp[0]] = l = r
+	'	Print "EQ       //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
+		Local r:Double = Double Ptr(varp)[rp[1]]
+		Local l:Double = Double Ptr(varp)[rp[2]]
+		Int Ptr(varp + rp[0])[0] = l = r
 	End Function
 	Function LT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
@@ -393,9 +391,8 @@ Type BlueJIT Final
 	Function JIF(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "JIF      //"
 		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
-	'	Print "  " + rp[0] + " " + Int Ptr(rp + 1)[0]
-		If stk.varp[rp[0]] <> 0
-			Local target:Int = Int Ptr(rp + 1)[0]'ins)[1]
+		If Int Ptr(stk.varp + rp[0])[0]
+			Local target:Int = Int Ptr(rp + 1)[0]
 			Int Ptr(retptr)[-4] = target
 		EndIf
 	End Function
@@ -403,7 +400,7 @@ Type BlueJIT Final
 	End Function
 	Function CALL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "CALL     //"
-		Local varp:Double Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local fp:Int Ptr = Int Ptr(varp + rp[0])
 		If Not PrepareCall(fp, stk, rp, varp, retptr)	'PrepareCall sets everything up so there's nothing else to do to make the call happen
 			'__call metamethod
@@ -413,12 +410,11 @@ Type BlueJIT Final
 	End Function
 	Function RET:Byte Ptr(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "RET      //"
-		Local varp:Double Ptr = stk.varp
+		Local varp:Long Ptr = stk.varp
 		Local rp0:Byte Ptr = Byte Ptr Ptr(retptr)[-4], rp:Byte Ptr = rp0 + IP_OFFSET
-	'	Print "  " + rp[0] + " " + Int Ptr(rp + 1)[0]
 		
 		Local oldStk:Stack = stk.prevBase
-		Local retv:Byte Ptr = varp + rp[0]
+		Local retv:Long Ptr = varp + rp[0]
 		If oldStk
 			oldStk.retv = retv
 			oldStk.retc = Int Ptr(rp + 1)[0]
@@ -435,11 +431,11 @@ Type BlueJIT Final
 	End Function
 	Function POSTCALL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "POSTCALL //"
-		Local varp:Byte Ptr = stk.varp
+		Local varp:Long Ptr = stk.varp
 		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		
 		For Local r:Int = 0 Until Min(Int Ptr(rp + 1)[0], stk.retc)
-			(Double Ptr(varp) + rp[0])[r] = Double Ptr(stk.retv)[r]
+			(varp + rp[0])[r] = stk.retv[r]
 		'	Print "  return " + r + ": " + Double Ptr(stk.retv)[r]
 		Next
 	End Function
@@ -451,9 +447,8 @@ Type BlueJIT Final
 	End Function
 	
 	
-	Function PrepareCall:Int(fp:Int Ptr, stk:Stack, rp:Byte Ptr, varp:Double Ptr, retptr:Byte Ptr)
-		Local tag:Int = fp[1] & (BlueTypeTag.NANBOX | BlueTypeTag.NATFUN)
-		If tag = BlueTypeTag.NANBOX | BlueTypeTag.FUN
+	Function PrepareCall:Int(fp:Int Ptr, stk:Stack, rp:Byte Ptr, varp:Long Ptr, retptr:Byte Ptr)
+		If fp[1] = BlueTypeTag.NANBOX | BlueTypeTag.FUN
 			Local newStk0:Stack ; Byte Ptr Ptr(Varptr(newStk0))[0] = Byte Ptr(stk) + stk.func.frameSz
 			Local newStk:Stack = newStk0	'micro-opt: newStk0 can't be a register because of the unwieldy conversion
 			
@@ -462,7 +457,7 @@ Type BlueJIT Final
 			Local closure:Byte Ptr = Byte Ptr(fp[0])
 			Local newBC:Bytecode = Bytecode Ptr(closure)[0]
 			Local voff:Int = STACKFRAME_INC + 4 * newBC.upvars
-			newStk.varp = Double Ptr(Byte Ptr(newStk) + voff)
+			newStk.varp = Long Ptr(Byte Ptr(newStk) + voff)
 			newStk.func = newBC
 		'	newStk._IP = 0
 			
@@ -470,7 +465,7 @@ Type BlueJIT Final
 		'	Local argc_min:Int ; If argc_actual < argc_required Then argc_min = argc_actual Else argc_min = argc_required
 			Local argc_min:Int = argc_actual - argc_required ; argc_min = (argc_min & (argc_min Shr 31)) + argc_required 'branchless 32-bit Min
 			
-			Local argv:Double Ptr = varp + rp[1], destv:Double Ptr = Double Ptr(Byte Ptr(newStk) + voff)
+			Local argv:Long Ptr = varp + rp[1], destv:Long Ptr = newStk.varp
 			For Local a:Int = 0 Until argc_min
 				destv[a] = argv[a]
 			'	Print "  arg " + a + ": " + argv[a]
@@ -494,7 +489,7 @@ Type BlueJIT Final
 			Byte Ptr Ptr(retptr)[-3] = Byte Ptr(newStk)
 			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(newBC) + BYTECODE_INC
 			
-		ElseIf tag = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN
+		ElseIf fp[1] = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN
 			'native call
 		Else
 			Return False	'not a function; take appropriate action

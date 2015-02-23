@@ -38,7 +38,7 @@
 ' - bigSpc is a simple list of conventionally-allocated objects that don't fit on a 1M page
 
 ' - objects use this layout:
-'    [ 64b header: [ 32b size ][ 2b colour ][ 1b hasFinalizer ][ 2b weak keys, values ][ 11b type tag ] ][ N * 64b data area... ]
+'    [ 64b header: [ 32b size ][ 16b type tag ][ 8b colour ][ 1b hasFinalizer ][ 2b weak keys, values ] ][ N * 64b data area... ]
 '   size includes header. for moved objects the second 32b are replaced by a forwarding pointer
 '   pointers in general are to the data area, skipping header
 
@@ -53,7 +53,7 @@
 '   thread uses this structure:
 '    [H][
 '   table uses this structure:
-'    [H][
+'    [H][ 32b hashpart ptr ][ 32b arraypart ptr ]
 '   tablearray uses this structure:
 '    [H][
 '   tablehash uses this structure:
@@ -81,11 +81,9 @@ Public
 
 
 Type BlueTypeTag Final
-	Const OFS:Int = 5
-	Const NUM:Int = 0, NIL:Int = 1 Shl OFS, BOOL:Int = 1 Shl (OFS + 1), STR:Int = 1 Shl (OFS + 2), FUN:Int = 1 Shl (OFS + 3)
-	Const USR:Int = 1 Shl (OFS + 4), THR:Int = 1 Shl (OFS + 5), TBL:Int = 1 Shl (OFS + 6), UPV:Int = 1 Shl (OFS + 7)
-	Const ARR:Int = 1 Shl (OFS + 8), BIG:Int = 1 Shl (OFS + 9), BCODE:Int = 1 Shl (OFS + 10), SUBTYPE:Int = 1 Shl (OFS + 11)
-	Const HEAVY:Int = USR | SUBTYPE, NATFUN:Int = FUN | SUBTYPE
+	Const NUM:Int = 0, NIL:Int = 1, BOOL:Int = 1 Shl 1, STR:Int = 1 Shl 2, FUN:Int = 1 Shl 3
+	Const NATFUN:Int = 1 Shl 4, USR:Int = 1 Shl 5, THR:Int = 1 Shl 6, TBL:Int = 1 Shl 7
+	Const UPV:Int = 1 Shl 8, ARR:Int = 1 Shl 9, HASH:Int = 1 Shl 10, BCODE:Int = 1 Shl 11
 	
 	Const NANBOX:Int = Int(2^11 - 1) Shl 20	'test against upper word
 End Type
