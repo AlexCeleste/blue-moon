@@ -1,4 +1,4 @@
---[ [
+--[[
 local x = 0
 --local y = 600000
 while x ~= 10000000 do
@@ -9,13 +9,12 @@ local function f(x) return x + 1 end
 local x = 0
 while x ~= 10000000 do
 	x = f(x)
-end
---]]
---[[
+end--]]
+--[ [
 local y = 2
 local x = 0
 local function f(x) return x + y end
-while x ~= 6 do
+while x ~= 10000000 do
 	x = f(x)
 end--]]
 --local a, b, c = 1, 2, 3

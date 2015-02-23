@@ -33,7 +33,7 @@ stk.retIP = Null ; stk.prevBase = Null
 Local vc:Int = 10, upvars:Int = 1
 stk.varp = Double Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
 stk.func = vm.funIndex[0]
-stk.IP = 0
+'stk.IP = 0
 stk.argv = Null	'may want to add space?
 stk.retv = Null
 stk.argc = 0
@@ -105,6 +105,9 @@ Type BlueVM
 				Local uoff:Int = 7 + u * 2
 				ib[u * 2] = buf[foff + uoff] ; ib[u * 2 + 1] = buf[foff + uoff + 1]
 			Next
+			If uc <> b.upvars	'ensure padding is safe by copying the first one
+				ib[uc * 2] = buf[foff + 7] ; ib[uc * 2 + 1] = buf[foff + 7 + 1]
+			EndIf
 			
 			Local db:Double Ptr = Double Ptr(ib + 2 * b.upvars)
 			For Local k:Int = 0 Until kc
@@ -148,7 +151,7 @@ End Type
 Private
 Extern
 	Type Stack
-		Field retIP:Byte Ptr, prevBase:Stack, varp:Double Ptr, func:Bytecode, IP:Int, argv:Byte Ptr, retv:Byte Ptr, argc:Short, retc:Short
+		Field retIP:Byte Ptr, prevBase:Stack, varp:Double Ptr, func:Bytecode, _IP:Int, argv:Byte Ptr, retv:Byte Ptr, argc:Short, retc:Short
 	End Type
 	Type Bytecode
 		Field mcode:Byte Ptr, idMod:Int, kcount:Int, pcount:Int, upvars:Int, frameSz:Int, icount:Int, vm:Byte Ptr
@@ -246,11 +249,9 @@ Type BlueJIT Final
 	Function GETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function SETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "SETLC    // ip:  " + stk.IP
-	'	Local varp:Double Ptr = stk.varp
-	'	Local ins:Byte Ptr = (bytecode + stk.IP)
-	'	Double Ptr Ptr(varp + ins[1])[0][0] = varp[ins[2]]
-	'	stk.IP :+ IP_INCR
+	'	Print "SETLC    //"
+		Local varp:Double Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Double Ptr Ptr(varp + rp[0])[0][0] = varp[rp[1]]
 	End Function
 	Function LOADK(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "LOADK    //"
@@ -288,11 +289,10 @@ Type BlueJIT Final
 	Function SETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "GETUPV   // ip:  " + stk.IP
-	'	Local varp:Double Ptr = stk.varp, upvp:Double Ptr = Double Ptr(Byte Ptr(stk) + STACKFRAME_INC)
-	'	Local ins:Byte Ptr = (bytecode + stk.IP), valp:Double Ptr = Double Ptr Ptr(upvp + ins[2])[0]
-	'	varp[ins[1]] = valp[0]
-	'	stk.IP :+ IP_INCR
+	'	Print "GETUPV   //"
+		Local varp:Double Ptr = stk.varp, upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC)
+		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, valp:Double Ptr = Double Ptr(upvp[rp[1]])
+		varp[rp[0]] = valp[0]
 	End Function
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
@@ -308,27 +308,26 @@ Type BlueJIT Final
 		
 		'get upvalues off the stack
 		For Local u:Int = 0 Until cbytecode.upvars
-	'		If upvp[2 * u]
-	'			Double Ptr(closure)[1 + u] = Double Ptr(Byte Ptr(stk) + STACKFRAME_INC)[upvp[2 * u + 1]]
-	'		Else
-	'			Double Ptr(closure)[1 + u] = varp[upvp[2 * u + 1]]
-	'		EndIf
+			If upvp[2 * u]
+				Byte Ptr Ptr(closure)[2 + u] = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC)[upvp[2 * u + 1]]
+			Else
+				Byte Ptr Ptr(closure)[2 + u] = Byte Ptr Ptr(varp + upvp[2 * u + 1])[0]
+			EndIf
 		Next
 		Byte Ptr Ptr(closure)[0] = Byte Ptr(cbytecode)
 		
 		d[0] = Int(closure) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.FUN
 	End Function
 	Function NEWUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "NEWUPV   // ip:  " + stk.IP
-	'	Local ins:Byte Ptr = (bytecode + stk.IP)
-	'	Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(Byte Ptr Ptr(bytecode)[-1])
-	'	Local upv:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.UPV), d:Int Ptr = Int Ptr(stk.varp + ins[1])
-	'	d[0] = Int(upv) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.UPV
-	'	stk.IP :+ IP_INCR
+	'	Print "NEWUPV   //"
+		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		Local upv:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.UPV), d:Int Ptr = Int Ptr(stk.varp + rp[0])
+		d[0] = Int(upv) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.UPV
 	End Function
 	
 	Function ADD(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "ADD      // ip:  " + stk.IP
+	'	Print "ADD      //"
 		Local varp:Double Ptr = stk.varp
 		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local d:Double Ptr = varp + rp[0]
@@ -462,10 +461,10 @@ Type BlueJIT Final
 			newStk.prevBase = stk
 			Local closure:Byte Ptr = Byte Ptr(fp[0])
 			Local newBC:Bytecode = Bytecode Ptr(closure)[0]
-			Local voff:Int = STACKFRAME_INC + 8 * newBC.upvars' + 4
+			Local voff:Int = STACKFRAME_INC + 4 * newBC.upvars
 			newStk.varp = Double Ptr(Byte Ptr(newStk) + voff)
 			newStk.func = newBC
-			newStk.IP = 0
+		'	newStk._IP = 0
 			
 			Local argc_actual:Int = Short Ptr(rp)[1], argc_required:Int = newBC.pcount
 		'	Local argc_min:Int ; If argc_actual < argc_required Then argc_min = argc_actual Else argc_min = argc_required
@@ -482,16 +481,16 @@ Type BlueJIT Final
 			newStk.argv = argv + argc_min	'argv should be to the varargs (if any)
 			newStk.argc = argc_actual - argc_min	'argc is the number of varargs
 			
-		'	destv = Double Ptr(Byte Ptr(newStk) + STACKFRAME_INC)
-		'	Local upv:Double Ptr = Double Ptr(closure + 8)'Byte Ptr(newBC) + BYTECODE_INC + newBC.icount * 8)
-		'	For Local up:Int = 0 Until newBC.upvars	'emplace upvars
-		'		destv[up] = upv[up]
-		'		Print "  upv " + up + ": " + destv[up]
-		'		Print "  val: " + Double Ptr Ptr(Double Ptr(closure) + 1 + up)[0][0]
-		'	Next
+			Local destup:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(newStk) + STACKFRAME_INC)
+			Local upv:Byte Ptr Ptr = Byte Ptr Ptr(closure + 8)
+			For Local up:Int = 0 Until newBC.upvars	'emplace upvars
+				destup[up] = upv[up]
+			'	Print "  upv " + up + ": " + destv[up]
+			'	Print "  val: " + Double Ptr Ptr(Byte Ptr Ptr(closure) + 2 + up)[0][0]
+			Next
 			
 			'note that the following OVERWRITE THE PARAMETERS (in release mode), so no touching stk from here on
-			Byte Ptr Ptr(retptr)[-4] = newBC.mcode' + BlueJIT.PROLOGUESZ
+			Byte Ptr Ptr(retptr)[-4] = newBC.mcode
 			Byte Ptr Ptr(retptr)[-3] = Byte Ptr(newStk)
 			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(newBC) + BYTECODE_INC
 			
