@@ -36,16 +36,33 @@
 '   this means it can form a freelist without needing compaction (or be compacted easily b/c single-ownership)
 
 ' - bigSpc is a simple list of conventionally-allocated objects that don't fit on a 1M page
-' - tables too big to fit on one page are split rather than allocated in bigSpc (~160G maximum)
 
 ' - objects use this layout:
 '    [ 64b header: [ 32b size ][ 2b colour ][ 1b hasFinalizer ][ 2b weak keys, values ][ 11b type tag ] ][ N * 64b data area... ]
 '   size includes header. for moved objects the second 32b are replaced by a forwarding pointer
+'   pointers in general are to the data area, skipping header
 
-' - data types are:  nil, boolean, number, string, function, userdata, thread, table ; upvar, tablearray, bigtable, bytecode
-'   userdata is divided into heavy and light subtypes
-'   function is divided into native and Lua subtypes
-' - subtypes need to respond to both `tag & TYPE` and `tag & SUBTYPE`, so they need a two-bit pattern
+' - data types are:  nil, boolean, number, string, closure, natfun, userdata, thread, table ; upvar, tablearray, tablehash, bytecode
+'   nil/boolean/number/natfun are value types and need no allocation
+'   string uses this structure:
+'    [H][ 32b length ][ 32b hash ][ ceil(length/4) * 64b chars ]
+'   closure uses this structure:
+'    [H][ 32b bytecode ptr ][ N * 32b upvar ptrs ]
+'   userdata uses this structure:
+'    [H][ 32b metatable ][ 32b value ]
+'   thread uses this structure:
+'    [H][
+'   table uses this structure:
+'    [H][
+'   tablearray uses this structure:
+'    [H][
+'   tablehash uses this structure:
+'    [H][
+'   upvar uses this structure:
+'    [H][ 64b value ]
+'   bytecode uses this structure:
+'    [H][
+
 
 SuperStrict
 
@@ -57,6 +74,7 @@ Extern
 	Function PageAlloc:Byte Ptr(size:Int) = "bluemoon_mmap"
 	Function PageSetRW:Int(p:Byte Ptr, sz:Int) = "bluemoon_mprotect_rw"
 	Function PageSetRWX:Int(p:Byte Ptr, sz:Int) = "bluemoon_mprotect_rwx"
+	Function PageSetProtected:Int(p:Byte Ptr, sz:Int) = "bluemoon_mprotect_none"
 	Function PageFree:Int(p:Byte Ptr, sz:Int) = "bluemoon_munmap"
 End Extern
 Public
@@ -111,7 +129,6 @@ Type BlueVMMemory Final
 		newSpace = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpace = AlignedAlloc(EDENSIZE, PAGESZ)
 		newPtr = 0
 		
-	'	codeFreeList = Byte Ptr(0)
 		AddCodePage()
 		AddPage(oldStrSpace, PAGEMETASZ)
 		AddPage(oldPtrSpace, PAGEBITMAPSZ)
@@ -121,14 +138,6 @@ Type BlueVMMemory Final
 	End Method
 	
 	Method AddCodePage()
-	'	codeSpace = [AlignedAlloc(PAGESZ, PAGESZ)] + codeSpace
-	'	PageSetRWX(codeSpace[0], PAGESZ)
-	'	Local last:Int = PAGESZ - (FUNCSIZE + (PAGESZ Mod FUNCSIZE))
-	'	For Local blk:Int = 0 Until last Step FUNCSIZE
-	'		Byte Ptr Ptr(codeSpace[0] + blk)[0] = (codeSpace[0] + blk + FUNCSIZE)
-	'	Next
-	'	Byte Ptr Ptr(codeSpace[0] + last)[0] = codeFreeList
-	'	codeFreeList = codeSpace[0]
 		codeSpace = [AlignedAlloc(2 * PAGESZ, PAGESZ)] + codeSpace
 		PageSetRWX(codeSpace[0], PAGESZ)
 		Int Ptr(codeSpace[0])[0] = PAGEMETASZ
@@ -146,16 +155,6 @@ Type BlueVMMemory Final
 		End Select
 	End Method
 	
-'	Method AllocCodeBlock:Byte Ptr()
-'		If Not codeFreeList Then AddCodePage()
-'		Local b:Byte Ptr = codeFreeList
-'		codeFreeList = Byte Ptr Ptr(codeFreeList)[0]
-'		Return b
-'	End Method
-'	Method FreeCodeBlock(b:Byte Ptr)
-'		Byte Ptr Ptr(b)[0] = codeFreeList
-'		codeFreeList = b
-'	End Method
 	Method AllocCodeBlock:Int[](sz:Int)	'this can return less than the requested size; up to the JIT to request more
 		Local page:Byte Ptr = codeSpace[0], pNewPtr:Int = Int Ptr(page)[0]
 		If pNewPtr + sz > PAGESZ
@@ -207,8 +206,8 @@ End Type
 Type BlueGCNode
 	Field pv:BlueGCNode, nx:BlueGCNode, val:Byte Ptr
 	Method Remove()
-		If pv Then pv.nx = nx
-		If nx Then nx.pv = pv
+		If pv Then pv.nx = nx ; pv = Null
+		If nx Then nx.pv = pv ; nx = Null
 	End Method
 End Type
 

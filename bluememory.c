@@ -41,6 +41,10 @@ int bluemoon_mprotect_rwx(void * p, size_t sz) {
 	return mprotect(p, sz, PROT_READ | PROT_WRITE | PROT_EXEC);
 }
 
+int bluemoon_mprotect_none(void * p, size_t sz) {
+	return mprotect(p, sz, PROT_NONE);
+}
+
 int bluemoon_munmap(void * p, size_t sz) {
 	return munmap(p, sz);
 }
