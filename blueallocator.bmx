@@ -157,7 +157,10 @@ Type BlueVMMemory Final
 		Int Ptr(ret)[0] = size ; Int Ptr(ret)[1] = hash
 		Return ret
 	End Method
-	Method AllocUserdata()
+	Method AllocUserdata:Byte Ptr(meta:Byte Ptr, val:Byte Ptr)
+		Local ret:Byte Ptr = AllocObject(8, BlueTypeTag.USR)
+		Byte Ptr Ptr(ret)[0] = meta ; Byte Ptr Ptr(ret)[1] = val
+		Return ret
 	End Method
 	Method AllocThread()
 	End Method
