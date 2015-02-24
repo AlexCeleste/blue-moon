@@ -11,6 +11,7 @@ SuperStrict
 
 Import "bluecompiler.bmx"
 Import "blueallocator.bmx"
+Import "bluetable.bmx"
 Rem
 Import "blueasm.o"
 Extern

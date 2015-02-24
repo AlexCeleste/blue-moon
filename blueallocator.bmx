@@ -45,9 +45,9 @@
 ' - data types are:  nil, boolean, number, string, closure, natfun, userdata, thread, table ; upvar, tablearray, tablehash, bytecode
 '   nil/boolean/number/natfun are value types and need no allocation
 '   string uses this structure:
-'    [H][ 32b length ][ 32b hash ][ ceil(length/4) * 64b chars ]
+'    [H][ 32b length ][ 32b hash ][ ceil(length/4) * 64b chars... ]
 '   closure uses this structure:
-'    [H][ 32b bytecode ptr ][32b][ N * 32b upvar ptrs ] (N rounded up to 2 for alignment)
+'    [H][ 32b bytecode ptr ][32b][ N * 32b upvar ptrs... ] (N rounded up to 2 for alignment)
 '   userdata uses this structure:
 '    [H][ 32b metatable ][ 32b value ]
 '   thread uses this structure:
@@ -55,7 +55,7 @@
 '   table uses this structure:
 '    [H][ 32b metatable ][32b][ 32b hashpart ptr ][ 32b arraypart ptr ]
 '   tablearray uses this structure:
-'    [H][
+'    [H][ 32b len ][ 32b maxlen ][ N * 64b values... ]
 '   tablehash uses this structure:
 '    [H][
 '   upvar uses this structure:

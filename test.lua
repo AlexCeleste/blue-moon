@@ -17,6 +17,7 @@ local function f(x) return x + y end
 while x ~= 10000000 do
 	x = f(x)
 end--]]
+--function f(x) return function() return x end end
 --local a, b, c = 1, 2, 3
 --a = 6 ; b = 7 ; c = 8
 --[[
