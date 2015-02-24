@@ -68,11 +68,10 @@ stk.argv = Null	'may want to add space?
 stk.retv = Null
 stk.argc = 0
 stk.retc = 0
-Print "stack: " + Hex(Int(Byte Ptr(stk)))
 
 Print "running..."
 Local t:Int = MilliSecs()
-'Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
+Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
 t = MilliSecs() - t
 Print t
 Print "run complete"
@@ -109,10 +108,7 @@ Type BlueVM
 			If sz > 2	'strings have size > 2
 				Local length:Double, lp:Int Ptr = Int Ptr(Varptr(length))
 				lp[0] = buf[koff] ; lp[1] = buf[koff + 1]
-				Local s:Byte Ptr = mem.AllocObjectOldSpace(mem.oldStrSpace, Ceil(length / 2) * 4, BlueTypeTag.STR)
-				For Local c:Int = 0 Until Ceil(length / 2)
-					Int Ptr(s)[c] = buf[koff + 2 + c]
-				Next
+				Local s:Byte Ptr = mem.AllocString(length, Short Ptr(Varptr(buf[koff + 2])))
 				ktbl[k] = mem.PtrToVal(s, BlueTypeTag.STR)
 			Else
 				Local d:Double, dp:Int Ptr = Int Ptr(Varptr(d))
@@ -332,8 +328,7 @@ Type BlueJIT Final
 	'	Print "NEWTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
-		Local tab:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.TBL)
-		Int Ptr(tab)[0] = 0 ; Int Ptr(tab)[1] = 0
+		Local tab:Byte Ptr = vm.mem.AllocTable(Null)
 		Local d:Int Ptr = Int Ptr(varp + rp[0])
 		d[0] = Int(tab) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.TBL
 	End Function
@@ -343,7 +338,7 @@ Type BlueJIT Final
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local d:Int Ptr = Int Ptr(varp + rp[0])
 		Local cbytecode:Bytecode = vm.funIndex[Int Ptr(rp + 1)[0]], upvp:Int Ptr = Int Ptr(Byte Ptr(cbytecode) + BYTECODE_INC + 8 * cbytecode.icount)
-		Local closure:Byte Ptr = vm.mem.AllocObject(8 + cbytecode.upvars * 4, BlueTypeTag.FUN)	'upvars is always even
+		Local closure:Byte Ptr = vm.mem.AllocClosure(cbytecode, cbytecode.upvars)	'upvars is always even (alignment)
 		
 		'get upvalues off the stack
 		For Local u:Int = 0 Until cbytecode.upvars
@@ -353,7 +348,6 @@ Type BlueJIT Final
 				Byte Ptr Ptr(closure)[2 + u] = Byte Ptr Ptr(varp + upvp[2 * u + 1])[0]
 			EndIf
 		Next
-		Byte Ptr Ptr(closure)[0] = Byte Ptr(cbytecode)
 		
 		d[0] = Int(closure) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.FUN
 	End Function
@@ -371,7 +365,7 @@ Type BlueJIT Final
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local d:Double Ptr = Double Ptr(varp + rp[0])
 		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
-		If l[1] & BlueTypeTag.NANBOX = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX = BlueTypeTag.NANBOX
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
 			DebugStop
 		Else
 			d[0] = Double Ptr(l)[0] + Double Ptr(r)[0]

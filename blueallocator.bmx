@@ -53,7 +53,7 @@
 '   thread uses this structure:
 '    [H][
 '   table uses this structure:
-'    [H][ 32b hashpart ptr ][ 32b arraypart ptr ]
+'    [H][ 32b metatable ][32b][ 32b hashpart ptr ][ 32b arraypart ptr ]
 '   tablearray uses this structure:
 '    [H][
 '   tablehash uses this structure:
@@ -85,7 +85,7 @@ Type BlueTypeTag Final
 	Const NATFUN:Int = 1 Shl 4, USR:Int = 1 Shl 5, THR:Int = 1 Shl 6, TBL:Int = 1 Shl 7
 	Const UPV:Int = 1 Shl 8, ARR:Int = 1 Shl 9, HASH:Int = 1 Shl 10, BCODE:Int = 1 Shl 11
 	
-	Const NANBOX:Int = Int(2^11 - 1) Shl 20	'test against upper word
+	Const NANBOX:Int = Int(2^11 - 1) Shl 20, NANBOX_CHK:Int = NANBOX | (1 Shl 19)	'test against upper word (and that it's not a genuine NaN)
 End Type
 
 Type BlueVMMemory Final
@@ -133,6 +133,33 @@ Type BlueVMMemory Final
 	End Method
 	Method Delete()
 		' unmap a bunch of stuff
+	End Method
+	
+	Method AllocTable:Byte Ptr(meta:Byte Ptr)
+		Local ret:Byte Ptr = AllocObject(16, BlueTypeTag.TBL)
+		Byte Ptr Ptr(ret)[0] = meta
+		Int Ptr(ret)[2] = 0 ; Int Ptr(ret)[3] = 0
+		Return ret
+	End Method
+	Method AllocClosure:Byte Ptr(bc:Byte Ptr, upvars:Int)	'already aligned
+		Local ret:Byte Ptr = AllocObject(8 + upvars * 4, BlueTypeTag.FUN)
+		Byte Ptr Ptr(ret)[0] = bc
+		Return ret
+	End Method
+	Method AllocString:Byte Ptr(size:Int, charp:Short Ptr)
+		Local sz:Int = size
+		If sz Mod 4 Then sz :+ 4 - sz Mod 4	'align properly
+		Local ret:Byte Ptr = AllocObject(8 + sz * 2, BlueTypeTag.STR), destp:Short Ptr = Short Ptr(ret + 8), hash:Int = 5381
+		For Local c:Int = 0 Until size	'fill the string and compute hash in one go
+			destp[c] = charp[c]
+			hash = (hash * 33) ~ charp[c]	'djb2
+		Next
+		Int Ptr(ret)[0] = size ; Int Ptr(ret)[1] = hash
+		Return ret
+	End Method
+	Method AllocUserdata()
+	End Method
+	Method AllocThread()
 	End Method
 	
 	Method AddCodePage()
