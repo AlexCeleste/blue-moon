@@ -100,7 +100,7 @@ Type BlueVM
 	' Load the procedures and constants of a compiled binary into the VM, returning the function representing the program toplevel
 	Method LoadObjectCode:BlueLuaVal(code:BlueBinary)
 		Local buf:Int[] = code.buf
-		Local fcount:Int = buf[0], kcount:Int = buf[1], ktblpos:Int = buf[2], ktbl:Double[kcount]
+		Local fcount:Int = buf[0], kcount:Int = buf[1], ktblpos:Int = buf[2], ktbl:Long[kcount]
 		Local convert:Byte Ptr(o:Object) = Byte Ptr(BlueJIT.Identity)
 		
 		For Local k:Int = 0 Until kcount
@@ -113,7 +113,7 @@ Type BlueVM
 			Else
 				Local d:Double, dp:Int Ptr = Int Ptr(Varptr(d))
 				dp[0] = buf[koff] ; dp[1] = buf[koff + 1]
-				ktbl[k] = d
+				Double Ptr(Varptr(ktbl[k]))[0] = d
 			EndIf
 		Next
 		
@@ -135,7 +135,7 @@ Type BlueVM
 				ib[uc * 2] = buf[foff + 7] ; ib[uc * 2 + 1] = buf[foff + 7 + 1]
 			EndIf
 			
-			Local db:Double Ptr = Double Ptr(ib + 2 * b.upvars)
+			Local db:Long Ptr = Long Ptr(ib + 2 * b.upvars)
 			For Local k:Int = 0 Until kc
 				db[k] = ktbl[buf[foff + 7 + uc * 2 + k]]
 			Next
