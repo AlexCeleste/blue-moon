@@ -220,12 +220,12 @@ Type BlueVMMemory Final
 		Return ret + 8
 	End Method
 	
-	Function PtrToVal:Double(p:Byte Ptr, tag:Int)
-		Local ret:Double, rp:Int Ptr = Int Ptr(Varptr(ret))
+	Function PtrToVal:Long(p:Byte Ptr, tag:Int)
+		Local ret:Long, rp:Int Ptr = Int Ptr(Varptr(ret))
 		rp[0] = Int(p) ; rp[1] = BlueTypeTag.NANBOX | tag
 		Return ret
 	End Function
-	Function ValToPtr:Byte Ptr(v:Double)
+	Function ValToPtr:Byte Ptr(v:Long)
 		Local vp:Byte Ptr Ptr = Byte Ptr Ptr(Varptr(v))
 		Return vp[0]
 	End Function
