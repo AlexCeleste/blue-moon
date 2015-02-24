@@ -72,7 +72,7 @@ Print "stack: " + Hex(Int(Byte Ptr(stk)))
 
 Print "running..."
 Local t:Int = MilliSecs()
-Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
+'Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
 t = MilliSecs() - t
 Print t
 Print "run complete"
@@ -362,6 +362,7 @@ Type BlueJIT Final
 		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local upv:Byte Ptr = vm.mem.AllocObject(8, BlueTypeTag.UPV), d:Int Ptr = Int Ptr(stk.varp + rp[0])
+		Long Ptr(upv)[0] = Long Ptr(d)[0]	'promote a value if it existed (useful for parameters)
 		d[0] = Int(upv) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.UPV
 	End Function
 	

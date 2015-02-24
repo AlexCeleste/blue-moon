@@ -455,6 +455,11 @@ Type BlueAssembly
 		lbl = LabelDef[](fd._lt.ToArray())
 		gto = GotoDef[](fd._gt.ToArray())
 		
+		' allow closures over parameters
+		For Local p:Int = params - 1 To 0 Step -1
+			If fd.vars[p].isClosure Then inst.AddFirst(BlueInstr.Make(opc.NEWUPV, fd.vars[p].stkpos, 0))
+		Next
+		
 		' add final return so that jumps don't run off the end
 		inst.AddLast BlueInstr.Make(opc.RET, 0, 0, 0)
 		' remove redundant MOV instructions
