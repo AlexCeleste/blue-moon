@@ -280,6 +280,7 @@ Type BlueJIT Final
 	Function SETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "SETLC    //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		'add a write barrier here
 		Long Ptr Ptr(varp + rp[0])[0][0] = varp[rp[1]]
 	End Function
 	Function LOADK(stk:Stack, bc:Bytecode, retptr:Byte Ptr)

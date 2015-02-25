@@ -1,6 +1,7 @@
 
 ' Blue Moon
 ' Lua-table implementation
+' uses simple linear probing for collision resolution and a shockingly naive reallocator
 
 
 SuperStrict
