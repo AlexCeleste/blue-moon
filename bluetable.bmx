@@ -90,10 +90,11 @@ Type BlueTable Final
 					
 				EndIf
 			EndIf
+			If slot Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed (not pointer)
 		EndIf
 		
 		If slot = Null
-			Resize(mem, tbl, key) ; Set Null, tbl, key, val
+			Resize(mem, tbl, key) ; Set mem, tbl, key, val
 		Else
 			mem.Write(slot, val)
 		EndIf
@@ -152,9 +153,8 @@ Type BlueTable Final
 			Int Ptr(tbl)[3] = 0
 		EndIf
 		If tsize
-			tsize = 2 ^ tsize
-			newtable = mem.AllocObject(tsize * 16 + 8, BlueTypeTag.HASH)
-			For Local i:Int = 0 Until tsize * 2
+			newtable = mem.AllocObject(2 ^ tsize * 16 + 8, BlueTypeTag.HASH)
+			For Local i:Int = 0 Until 2 ^ tsize * 2
 				Int Ptr(newtable)[i * 2 + 1] = NILTAG
 			Next
 			Int Ptr(newtable)[-1] = tsize ; Byte Ptr Ptr(tbl)[2] = newtable
@@ -162,12 +162,17 @@ Type BlueTable Final
 			Int Ptr(tbl)[2] = 0
 		EndIf
 		
-		For Local i:Int = 0 Until Int Ptr(arraypart)[-1]	'reinsert values
-			Set Null, tbl, Double(i), Long Ptr(arraypart)[i]
-		Next
-		For Local i:Int = 0 Until Int Ptr(hashpart)[-1]
-			Set Null, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]	'Null used here as a sentinel (it should not be used again, so...)
-		Next
+		If arraypart
+			For Local i:Int = 0 Until Int Ptr(arraypart)[-1]	'reinsert values
+				Local key:Long ; Double Ptr(Varptr(key))[0] = i
+				Set mem, tbl, key, Long Ptr(arraypart)[i]
+			Next
+		EndIf
+		If hashpart
+			For Local i:Int = 0 Until Int Ptr(hashpart)[-1]
+				Set mem, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]
+			Next
+		EndIf
 	End Function
 End Type
 
