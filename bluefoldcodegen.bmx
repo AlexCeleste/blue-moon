@@ -33,7 +33,7 @@ Type CompileFold
 		Local r:BytecodeNode = BytecodeNode.Join(n.key, n.arg)
 		Local ind:Int = f.Pop(), tab:Int = f.Pop(), val:Int = f.Pop()
 		Local pv:BlueInstr = BlueInstr(r.inst.Last())
-		If pv.op = opc.LOADSI
+		If pv.op = opc.LOADSI And Abs(pv.c) < f.VSI_LIMIT And pv.c = Abs pv.c
 			pv.op = opc.SETTABSI ; pv.ra = tab ; pv.rb = val
 		Else
 			r.inst.AddLast bi.Make(opc.SETTABI, tab, val, ind)
@@ -248,7 +248,7 @@ Type CompileFold
 		Else
 			Local idx:Int = f.Pop(), tab:Int = f.Pop()
 			Local pv:BlueInstr = BlueInstr(r.inst.Last())
-			If pv.op = opc.LOADSI And Abs(pv.c) < f.VSI_LIMIT
+			If pv.op = opc.LOADSI And Abs(pv.c) < f.VSI_LIMIT And pv.c = Abs pv.c
 				pv.op = opc.GETTABSI ; pv.ra = f.Push() ; pv.rb = tab
 			Else
 				r.inst.AddLast bi.Make(opc.GETTABI, f.Push(), tab, idx)
