@@ -91,11 +91,82 @@ Type BlueTable Final
 			EndIf
 		EndIf
 		
-		If slot = Null Then slot = Resize(mem, tbl, key)
-		mem.Write(slot, val)
+		If slot = Null
+			Resize(mem, tbl, key) ; Set Null, tbl, key, val
+		Else
+			mem.Write(slot, val)
+		EndIf
 	End Function
 	
-	Function Resize:Long Ptr(mem:BlueVMMemory, tbl:Byte Ptr, key:Long)
+	Function Resize(mem:BlueVMMemory, tbl:Byte Ptr, key:Long)
+		Local hashpart:Byte Ptr = Byte Ptr Ptr(tbl)[2], arraypart:Byte Ptr = Byte Ptr Ptr(tbl)[3]
+		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
+		
+		Local asize:Int = 0, tsize:Int = 0, numcount:Int[32]
+		If arraypart	'compute new array size
+			If Int Ptr(arraypart)[1] <> NILTAG Then numcount[0] = 1
+			Local cell:Int = 1, cellp2:Int = 2 ^ cell
+			For Local i:Int = 1 Until Int Ptr(arraypart)[-1]
+				If i >= cellp2 Then cell :+ 1 ; cellp2 = 2 ^ cell
+				If Int Ptr(arraypart)[i * 2 + 1] <> NILTAG Then numcount[cell] :+ 1
+			Next
+		EndIf
+		If hashpart
+			For Local i:Int = 0 Until Int Ptr(hashpart)[-2]
+				Local tag2:Int = Int Ptr(hashpart)[i * 4 + 1]
+				If tag2 & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX
+					Local d:Double = Double Ptr(hashpart)[i * 2]
+					If d = Abs Int(d) Then numcount[Ceil(Log(d + 1) / Log(2))] :+ 1 Else tsize :+ 1
+				Else
+					tsize :+ 1	'get started on new table size
+				EndIf
+			Next
+		EndIf
+		Local tag:Int = Int Ptr(Varptr(key))[1]	'add key to the appropriate one
+		If tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX
+			Local d:Double = Double Ptr(Varptr(key))[0]
+			If d = Abs Int(d) Then numcount[Ceil(Log(d + 1) / Log(2))] :+ 1 Else tsize :+ 1
+		Else
+			tsize :+ 1
+		EndIf
+		For Local i:Int = 0 Until 32	'tally up
+			If i Then numcount[i] :+ numcount[i - 1]
+			If numcount[i] > 2 ^ i / 2 Then asize = 2 ^ i
+		Next
+		
+		If arraypart <> Null	'complete new table size with any discarded array elements
+			For Local i:Int = asize Until Int Ptr(arraypart)[-1]
+				If Int Ptr(arraypart)[i * 2 + 1] <> NILTAG Then tsize :+ 1
+			Next
+		EndIf
+		
+		Local newarray:Byte Ptr = Null, newtable:Byte Ptr = Null	'allocate and copy
+		If asize
+			newarray = mem.AllocObject(asize * 8 + 8, BlueTypeTag.ARR) + 8
+			For Local i:Int = 0 Until asize
+				Int Ptr(newarray)[i * 2 + 1] = NILTAG
+			Next
+			Int Ptr(newarray)[-1] = asize ; Byte Ptr Ptr(tbl)[3] = newarray
+		Else
+			Int Ptr(tbl)[3] = 0
+		EndIf
+		If tsize
+			tsize = 2 ^ tsize
+			newtable = mem.AllocObject(tsize * 16 + 8, BlueTypeTag.HASH)
+			For Local i:Int = 0 Until tsize * 2
+				Int Ptr(newtable)[i * 2 + 1] = NILTAG
+			Next
+			Int Ptr(newtable)[-1] = tsize ; Byte Ptr Ptr(tbl)[2] = newtable
+		Else
+			Int Ptr(tbl)[2] = 0
+		EndIf
+		
+		For Local i:Int = 0 Until Int Ptr(arraypart)[-1]	'reinsert values
+			Set Null, tbl, Double(i), Long Ptr(arraypart)[i]
+		Next
+		For Local i:Int = 0 Until Int Ptr(hashpart)[-1]
+			Set Null, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]	'Null used here as a sentinel (it should not be used again, so...)
+		Next
 	End Function
 End Type
 
