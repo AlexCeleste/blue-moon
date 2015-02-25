@@ -57,7 +57,7 @@
 '   tablearray uses this structure:
 '    [H][ 32b len ][ 32b maxlen ][ N * 64b values... ]
 '   tablehash uses this structure:
-'    [H][
+'    [H][ 32b count ][ 32b log2(maxlen) ][ N * [ 64b key ][ 64b value ]... ]
 '   upvar uses this structure:
 '    [H][ 64b value ]
 '   bytecode uses this structure:
