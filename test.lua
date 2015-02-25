@@ -10,7 +10,7 @@ local x = 0
 while x ~= 10000000 do
 	x = f(x)
 end--]]
---[ [
+--[[
 local y = 2
 local x = 0
 local function f(x) return x + y end
@@ -18,6 +18,12 @@ while x ~= 10000000 do
 	x = f(x)
 end--]]
 --function f(x) return function() return x end end
+local x = {}
+x[0] = 6 ; x[1] = 7 ; x[2] = 8 ; x[3] = 9
+local y = 0 ; while y ~= 4 do
+	x[y] = x[y] + 1
+	y = y + 1
+end
 --local a, b, c = 1, 2, 3
 --a = 6 ; b = 7 ; c = 8
 --[[

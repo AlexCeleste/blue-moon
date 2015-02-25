@@ -240,6 +240,10 @@ Type BlueJIT Final
 						Local kp:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars) + ip[1]
 						bytecodep[0] = ins[bi + 1] ; Double Ptr Ptr(bytecodep + 1)[0] = kp
 						
+					Case opc.SETTABSI, opc.GETTABSI
+						bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]
+						Short Ptr(bytecodep)[1] = Int Ptr(ins + bi)[1]
+						
 					Case opc.CALL
 						bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]
 						Short Ptr(bytecodep)[1] = Int Ptr(ins + bi)[1]
@@ -313,10 +317,30 @@ Type BlueJIT Final
 	Function SETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function SETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Print "SETTABSI //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		Local tabp:Byte Ptr = varp + rp[0]
+		Print "  " + Short Ptr(rp)[1]
+		Local key:Long ; Double Ptr(Varptr(key))[0] = Short Ptr(rp)[1]
+		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], key, varp[rp[1]])
 	End Function
 	Function GETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Print "GETTABI  //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local tabp:Byte Ptr = varp + rp[1]
+		Local val:Long = BlueTable.Get(Byte Ptr Ptr(tabp)[0], varp[rp[2]])
+		Local v:Double = Double Ptr(Varptr(val))[0]
+		Print "  " + v
+		varp[rp[0]] = val
 	End Function
 	Function SETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Print "SETTABI  //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		Local tabp:Byte Ptr = varp + rp[0]
+		Print "  " + Double Ptr(varp)[rp[2]] + " " + Double Ptr(varp)[rp[1]]
+		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], varp[rp[2]], varp[rp[1]])
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "GETUPV   //"
@@ -327,7 +351,7 @@ Type BlueJIT Final
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function NEWTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "NEWTAB   //"
+		Print "NEWTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local tab:Byte Ptr = vm.mem.AllocTable(Null)
@@ -363,13 +387,14 @@ Type BlueJIT Final
 	End Function
 	
 	Function ADD(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "ADD      //"
+		Print "ADD      //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local d:Double Ptr = Double Ptr(varp + rp[0])
 		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
 		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
 			DebugStop
 		Else
+			Print "  " + Double Ptr(l)[0] + " " + Double Ptr(r)[0]
 			d[0] = Double Ptr(l)[0] + Double Ptr(r)[0]
 		EndIf
 	End Function
