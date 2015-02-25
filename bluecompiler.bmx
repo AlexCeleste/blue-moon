@@ -558,11 +558,19 @@ Type BlueAssembly
 				If in.op >= opc.JMP	'any control-flow related op cancels
 					If (in.op = opc.JIF Or in.op = opc.JNOT) And mov.ra = in.ra Then il = replaceMov1(ml, in, mov.rb, in.rb, in.c) Else il = ml
 					ml = Null
-				ElseIf (in.op >= opc.GETTAB And in.op <= opc.SETTABSI) Or (in.op >= opc.UNM And in.op <= opc.UNP)
+				ElseIf in.op = opc.GETTAB Or in.op = opc.GETTABSI Or (in.op >= opc.UNM And in.op <= opc.UNP)
 					If mov.ra = in.rb Then il = replaceMov1(ml, in, in.ra, mov.rb, in.c)
-				ElseIf in.op = opc.GETTABI Or in.op = opc.SETTABI Or (in.op >= opc.ADD And in.op < opc.UNM) Or (in.op >= opc.EQ And in.op <= opc.LEQ)
+				ElseIf in.op = opc.SETTAB Or in.op = opc.SETTABSI
+					If mov.ra = in.ra Then il = replaceMov1(ml, in, mov.rb, in.rb, in.c)
+				ElseIf in.op = opc.GETTABI Or (in.op >= opc.ADD And in.op < opc.UNM) Or (in.op >= opc.EQ And in.op <= opc.LEQ)
 					If mov.ra = in.rb
 						il = replaceMov1(ml, in, in.ra, mov.rb, in.c)
+					ElseIf mov.ra = in.c
+						il = replaceMov1(ml, in, in.ra, in.rb, mov.rb)
+					EndIf
+				ElseIf in.op = opc.SETTABI
+					If mov.ra = in.ra
+						il = replaceMov1(ml, in, mov.rb, in.rb, in.c)
 					ElseIf mov.ra = in.c
 						il = replaceMov1(ml, in, in.ra, in.rb, mov.rb)
 					EndIf
