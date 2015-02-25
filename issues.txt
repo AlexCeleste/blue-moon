@@ -1,0 +1,7 @@
+
+- remove table init size limit (by flattening stack)
+- avoid copy on function call
+- remove limit on return values
+- remove limit on local/temp variables
+- remove stack effect of condition in if/while
+- preallocate array/hash areas for immediate tables
