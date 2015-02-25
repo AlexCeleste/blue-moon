@@ -32,8 +32,6 @@
 '   metadata also contains allocation pointer and used space total
 
 ' - codeSpace stores executable instruction buffers for Lua functions (bytecode is allocated directly into oldStrSpc)
-' - all instruction buffers are the same size; either the function is continued after a JMP, or the tail is unused
-'   this means it can form a freelist without needing compaction (or be compacted easily b/c single-ownership)
 
 ' - bigSpc is a simple list of conventionally-allocated objects that don't fit on a 1M page
 
@@ -53,7 +51,7 @@
 '   thread uses this structure:
 '    [H][
 '   table uses this structure:
-'    [H][ 32b metatable ][32b][ 32b hashpart ptr ][ 32b arraypart ptr ]
+'    [H][ 32b metatable ][32b][ 32b hashpart ptr + 8 ][ 32b arraypart ptr + 8 ]
 '   tablearray uses this structure:
 '    [H][ 32b len ][ 32b maxlen ][ N * 64b values... ]
 '   tablehash uses this structure:
@@ -135,6 +133,14 @@ Type BlueVMMemory Final
 		' unmap a bunch of stuff
 	End Method
 	
+	Method Write(slot:Long Ptr, val:Long)	'write barrier around old/big-space
+		'implement it here
+		slot[0] = val
+	End Method
+	
+	Method Collect()
+	End Method
+	
 	Method AllocTable:Byte Ptr(meta:Byte Ptr)
 		Local ret:Byte Ptr = AllocObject(16, BlueTypeTag.TBL)
 		Byte Ptr Ptr(ret)[0] = meta
@@ -197,13 +203,13 @@ Type BlueVMMemory Final
 	Method AllocObject:Byte Ptr(sz:Int, tag:Int)
 		sz :+ 8 ; Local ret:Byte Ptr
 		If sz < BIGOBJECTSZ
-		'	If newPtr + sz > EDENSIZE Then Collect()
+			If newPtr + sz > EDENSIZE Then Collect()
 			ret = newSpace + newPtr; newPtr :+ sz
 		Else
 			ret = MemAlloc(sz)
 			If Not ret Then Throw BlueInterpretError.Make("unable to allocate memory for object")
 			bigSpace :+ [ret]
-			' track as part of allocated memory?
+			' track as part of allocated memory
 		EndIf
 		Int Ptr(ret)[0] = sz
 		Return ret + 8
