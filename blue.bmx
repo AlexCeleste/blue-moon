@@ -178,7 +178,7 @@ End Type
 Private
 Extern
 	Type Stack
-		Field retIP:Byte Ptr, prevBase:Stack, varp:Long Ptr, func:Bytecode, _IP:Int, argv:Long Ptr, retv:Long Ptr, argc:Short, retc:Short
+		Field retIP:Byte Ptr, prevBase:Stack, varp:Long Ptr, func:Bytecode, _:Long Ptr, argv:Long Ptr, retv:Long Ptr, argc:Short, retc:Short
 	End Type
 	Type Bytecode
 		Field mcode:Byte Ptr, idMod:Int, kcount:Int, pcount:Int, upvars:Int, frameSz:Int, icount:Int, vm:Byte Ptr
@@ -329,6 +329,7 @@ Type BlueJIT Final
 		Print "GETTABI  //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local tabp:Byte Ptr = varp + rp[1]
+		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
 		Local val:Long = BlueTable.Get(Byte Ptr Ptr(tabp)[0], varp[rp[2]])
 		Local v:Double = Double Ptr(Varptr(val))[0]
 		Print "  " + v
@@ -340,6 +341,7 @@ Type BlueJIT Final
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local tabp:Byte Ptr = varp + rp[0]
 		Print "  " + Double Ptr(varp)[rp[2]] + " " + Double Ptr(varp)[rp[1]]
+		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
 		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], varp[rp[2]], varp[rp[1]])
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
