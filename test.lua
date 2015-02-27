@@ -19,7 +19,7 @@ while x ~= 10000000 do
 end--]]
 --function f(x) return function() return x end end
 local x = {}
-x[0] = 6 ; x[1] = 7 ; x[2] = 8 ; x[3] = 9
+x[0] = 6 ; x[1] = 7 ; x[2] = 8 ; x[3] = 9 ; x['a'] = 10
 local y = 0 ; while y ~= 4 do
 	x[y] = x[y] + 1
 	y = y + 1

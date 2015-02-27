@@ -54,8 +54,9 @@ Type BlueTable Final
 	
 	Function Set(mem:BlueVMMemory, tbl:Byte Ptr, key:Long, val:Long)
 		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int, slot:Long Ptr = Null
+		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
 		
-		If tag = BlueTypeTag.NANBOX | BlueTypeTag.NIL Then Return	'nil is not a valid key
+		If tag = NILTAG Then Return	'nil is not a valid key
 		
 		If tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX	'if key is an int and less than arraylength
 			Local d:Double ; Long Ptr(Varptr(d))[0] = key ; idx = Abs Int(d)
@@ -82,15 +83,17 @@ Type BlueTable Final
 					
 					idx = idx & (hsize - 1)	'fastmod
 					For Local i:Int = idx Until hsize
-						If Long Ptr(hashpart)[2 * i] = key Then slot = Long Ptr(hashpart) + (2 * i + 1)
+						If Long Ptr(hashpart)[2 * i] = key Or Int Ptr(hashpart)[4 * i + 1] = NILTAG Then slot = Long Ptr(hashpart) + (2 * i + 1) ; Exit
 					Next
-					For Local i:Int = 0 Until idx
-						If Long Ptr(hashpart)[2 * i] = key Then slot = Long Ptr(hashpart) + (2 * i + 1)
-					Next
+					If Not slot
+						For Local i:Int = 0 Until idx
+							If Long Ptr(hashpart)[2 * i] = key Or Int Ptr(hashpart)[4 * i + 1] = NILTAG Then slot = Long Ptr(hashpart) + (2 * i + 1) ; Exit
+						Next
+					EndIf
 					
 				EndIf
 			EndIf
-			If slot Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed (not pointer)
+			If slot Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed to increment use count (not pointer)
 		EndIf
 		
 		If slot = Null
@@ -124,6 +127,7 @@ Type BlueTable Final
 				EndIf
 			Next
 		EndIf
+		
 		Local tag:Int = Int Ptr(Varptr(key))[1]	'add key to the appropriate one
 		If tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX
 			Local d:Double = Double Ptr(Varptr(key))[0]
@@ -135,7 +139,6 @@ Type BlueTable Final
 			If i Then numcount[i] :+ numcount[i - 1]
 			If numcount[i] > 2 ^ i / 2 Then asize = 2 ^ i
 		Next
-		
 		If arraypart <> Null	'complete new table size with any discarded array elements
 			For Local i:Int = asize Until Int Ptr(arraypart)[-1]
 				If Int Ptr(arraypart)[i * 2 + 1] <> NILTAG Then tsize :+ 1
@@ -143,33 +146,41 @@ Type BlueTable Final
 		EndIf
 		
 		Local newarray:Byte Ptr = Null, newtable:Byte Ptr = Null	'allocate and copy
-		If asize
+		Local oldasize:Int = 0 ; If arraypart Then oldasize = Int Ptr(arraypart)[-1]
+		Local oldtsize:Int = 0 ; If hashpart Then oldtsize = Int Ptr(hashpart)[-1]
+		
+		If asize <> oldasize
 			newarray = mem.AllocObject(asize * 8 + 8, BlueTypeTag.ARR) + 8
 			For Local i:Int = 0 Until asize
 				Int Ptr(newarray)[i * 2 + 1] = NILTAG
 			Next
 			Int Ptr(newarray)[-1] = asize ; Byte Ptr Ptr(tbl)[3] = newarray
-		Else
+		ElseIf asize = 0
 			Int Ptr(tbl)[3] = 0
+		Else
+			newarray = arraypart ; arraypart = Null
 		EndIf
-		If tsize
+		If tsize <> oldtsize
 			newtable = mem.AllocObject(2 ^ tsize * 16 + 8, BlueTypeTag.HASH)
 			For Local i:Int = 0 Until 2 ^ tsize * 2
 				Int Ptr(newtable)[i * 2 + 1] = NILTAG
 			Next
-			Int Ptr(newtable)[-1] = tsize ; Byte Ptr Ptr(tbl)[2] = newtable
-		Else
+			Int Ptr(newtable)[-1] = tsize ; Int Ptr(newtable)[-2] = 0
+			Byte Ptr Ptr(tbl)[2] = newtable
+		ElseIf tsize = 0
 			Int Ptr(tbl)[2] = 0
+		Else
+			newtable = hashpart ; hashpart = Null
 		EndIf
 		
 		If arraypart
-			For Local i:Int = 0 Until Int Ptr(arraypart)[-1]	'reinsert values
+			For Local i:Int = 0 Until oldasize	'reinsert values
 				Local key:Long ; Double Ptr(Varptr(key))[0] = i
 				Set mem, tbl, key, Long Ptr(arraypart)[i]
 			Next
 		EndIf
 		If hashpart
-			For Local i:Int = 0 Until Int Ptr(hashpart)[-1]
+			For Local i:Int = 0 Until oldtsize
 				Set mem, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]
 			Next
 		EndIf
