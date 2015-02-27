@@ -22,6 +22,7 @@ local x = {}
 x[0] = 6 ; x[1] = 7 ; x[2] = 8 ; x[3] = 9 ; x['a'] = 10
 local y = 0 ; while y ~= 4 do
 	x[y] = x[y] + 1
+	x['a'] = x['a'] + 1
 	y = y + 1
 end
 --local a, b, c = 1, 2, 3

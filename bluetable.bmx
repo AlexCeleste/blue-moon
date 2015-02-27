@@ -53,7 +53,7 @@ Type BlueTable Final
 	End Function
 	
 	Function Set(mem:BlueVMMemory, tbl:Byte Ptr, key:Long, val:Long)
-		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int, slot:Long Ptr = Null
+		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int, slot:Long Ptr = Null, writeKey:Int = False
 		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
 		
 		If tag = NILTAG Then Return	'nil is not a valid key
@@ -94,12 +94,14 @@ Type BlueTable Final
 				EndIf
 			EndIf
 			If slot Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed to increment use count (not pointer)
+			writeKey = True
 		EndIf
 		
 		If slot = Null
 			Resize(mem, tbl, key) ; Set mem, tbl, key, val
 		Else
 			mem.Write(slot, val)
+			If writeKey Then mem.Write(slot - 1, key)
 		EndIf
 	End Function
 	
