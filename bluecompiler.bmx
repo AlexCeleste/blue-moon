@@ -591,7 +591,7 @@ Type BlueAssembly
 			ElseIf ml <> Null
 				If in.op >= opc.JMP
 					ml = Null
-				ElseIf in.op = opc.GETTAB Or in.op = opc.GETTABI Or in.op = opc.GETTABSI Or in.op = opc.CLOSURE Or ..
+				ElseIf in.op = opc.GETTAB Or in.op = opc.GETTABI Or in.op = opc.GETTABSI Or in.op = opc.CLOSURE Or in.op = opc.NEWTAB Or ..
 						(in.op >= opc.ADD And in.op <= opc.LEQ) Or (in.op >= opc.LOADK And in.op <= opc.LOADNIL)
 					If mov.rb = in.ra
 						il = ml.NextLink()	'won't be null
