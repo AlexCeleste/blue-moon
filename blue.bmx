@@ -223,46 +223,50 @@ Type BlueJIT Final
 		Local codePage:Int Ptr = Int Ptr(Int(code) & ((Int(2^12)-1) Shl 20))	'return-to-native for the page
 		codePage[1] = $c30cc483	'add $12, %esp ; ret  - i.e. restore the stack to normal
 		
+		Local ktable:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars)
+		
 		' generate machine code!
 		Repeat
 			
-			For Local i:Int = 0 Until rsize / ISIZE	'emplace opcode calls and supporting bytecode data
-				Local codep:Byte Ptr = code + i * ISIZE, bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
+			Local i:Int = 0, codep:Byte Ptr = code
+			While rsize	'emplace opcode calls and supporting bytecode data
+				Local bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
 				codep[0] = $e8	'call
 				Local bi:Int = i * 8, op:Int = ins[bi], ip:Int Ptr = Int Ptr(ins + bi), func:Byte Ptr = opTbl[op]
 				Byte Ptr Ptr(codep + 1)[0] = func - Int(codep + ISIZE)
 				
+				bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]	'used by most, may get overwritten
+				
 				Select op
 					Case opc.LOADSI, opc.CLOSURE, opc.RET, opc.POSTCALL
-						bytecodep[0] = ins[bi + 1] ; Int Ptr(bytecodep + 1)[0] = Int Ptr(ins + bi)[1]
+						Int Ptr(bytecodep + 1)[0] = ip[1]
 						
 					Case opc.LOADK
-						Local kp:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars) + ip[1]
-						bytecodep[0] = ins[bi + 1] ; Double Ptr Ptr(bytecodep + 1)[0] = kp
+						Double Ptr Ptr(bytecodep + 1)[0] = ktable + ip[1]
 						
 					Case opc.SETTABSI, opc.GETTABSI
-						bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]
-						Short Ptr(bytecodep)[1] = Int Ptr(ins + bi)[1]
+						Short Ptr(bytecodep)[1] = ip[1]
 						
 					Case opc.CALL
-						bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]
-						Short Ptr(bytecodep)[1] = Int Ptr(ins + bi)[1]
+						Short Ptr(bytecodep)[1] = ip[1]
 						
 					Case opc.JIF, opc.JNOT
-						bytecodep[0] = ins[bi + 1]
-						Int Ptr(bytecodep + 1)[0] = Int(codep) + ISIZE * Int Ptr(ins + bi)[1]
+						Int Ptr(bytecodep + 1)[0] = Int(codep) + ISIZE * ip[1]
 						
 					Case opc.JMP
 						codep[0] = $e9	'use a true jump
-						Int Ptr(codep + 1)[0] = ISIZE * (Int Ptr(ins + bi)[1] - 1)
+						Int Ptr(codep + 1)[0] = ISIZE * (ip[1] - 1)
 						
 					Default	'binary operations A = B op C
-						bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2] ; bytecodep[2] = Int Ptr(ins + bi)[1]
+						bytecodep[2] = ip[1]
 				End Select
-			Next
+				
+				rsize :- ISIZE ; codep :+ ISIZE ; icount :- 1
+				i :+ 1
+			Wend
 			
-			Exit	'deal with overflowing code sections here
-		Forever
+			'deal with overflowing code sections here
+		Until icount = 0
 		
 		Return code - PROLOGUESZ
 	End Function
