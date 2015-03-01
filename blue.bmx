@@ -209,35 +209,42 @@ Type BlueJIT Final
 		If opTbl = Null Then InitOpTbl()
 		
 		' compute executable code size
-		Local sz:Int = PROLOGUESZ
+		Local codesize:Int = PROLOGUESZ, opPos:Int[icount]	'since sizes are irregular, looking up offsets is easiest
 		For Local i:Int = 0 Until icount
+			opPos[i] = codesize	'finalized below
 			Select ins[i * 8]
 			'	Case opc.SETTAB, opc.GETTAB
-			'		sz :+ ISIZE * 2
+			'		codesize :+ ISIZE * 2
 				Default
-					sz :+ ISIZE
+					codesize :+ ISIZE
 			End Select
 		Next
 		
 		' allocate executable space
-		Local code:Byte Ptr = vm.mem.AllocCodeBlock(PROLOGUESZ + icount * ISIZE)
+		Local code:Byte Ptr = vm.mem.AllocCodeBlock(codesize)
 		
-		For Local p:Int = 0 Until PROLOGUESZ	'emplace prologue (used for calling in from native only)
+		'finalize op offsets se we can look them up
+		For Local i:Int = 0 Until icount
+			opPos[i] :+ Int(code)	'direct to executable space
+		Next
+		
+		' emplace prologue (used for calling in from native only)
+		For Local p:Int = 0 Until PROLOGUESZ
 			code[p] = Prologue[p]
 		Next
 		Byte Ptr Ptr(code + 14)[0] = Byte Ptr(bytecode)	'replace the ########
-		code :+ PROLOGUESZ	'easier to not have to take this into account below
 		
-		Local codePage:Int Ptr = Int Ptr(Int(code) & ((Int(2^12)-1) Shl 20))	'return-to-native for the page
-		codePage[1] = $c30cc483	'add $12, %esp ; ret  - i.e. restore the stack to normal
+		' epilogue (shared location per-vm, probably already set)
+		vm.mem.returnToNative[0] = $c30cc483	'add $12, %esp ; ret  - i.e. restore the stack to normal
 		
-		Local ktable:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars)
+		Local ktable:Long Ptr = Long Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars)	'constant table
 		
 		' generate machine code!
 		For Local i:Int = 0 Until icount	'emplace opcode calls and supporting bytecode data
-			Local codep:Byte Ptr = code + i * ISIZE, bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
-			codep[0] = $e8	'call
+			Local codep:Byte Ptr = Byte Ptr(opPos[i]), bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
 			Local bi:Int = i * 8, op:Int = ins[bi], ip:Int Ptr = Int Ptr(ins + bi), func:Byte Ptr = opTbl[op]
+			
+			codep[0] = $e8	'call
 			Byte Ptr Ptr(codep + 1)[0] = func - Int(codep + ISIZE)
 			
 			bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]	'used by most, may get overwritten
@@ -247,7 +254,7 @@ Type BlueJIT Final
 					Int Ptr(bytecodep + 1)[0] = ip[1]
 					
 				Case opc.LOADK
-					Double Ptr Ptr(bytecodep + 1)[0] = ktable + ip[1]
+					Long Ptr Ptr(bytecodep + 1)[0] = ktable + ip[1]
 					
 				Case opc.SETTABSI, opc.GETTABSI
 					Short Ptr(bytecodep)[1] = ip[1]
@@ -260,14 +267,14 @@ Type BlueJIT Final
 					
 				Case opc.JMP
 					codep[0] = $e9	'use a true jump
-					Int Ptr(codep + 1)[0] = ISIZE * (ip[1] - 1)
+					Int Ptr(codep + 1)[0] = opPos[i + ip[1]] - (opPos[i] + ISIZE)
 					
 				Default	'binary operations A = B op C
 					bytecodep[2] = ip[1]
 			End Select
 		Next
 		
-		Return code - PROLOGUESZ
+		Return code
 	End Function
 	
 	

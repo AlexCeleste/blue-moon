@@ -93,7 +93,7 @@ Type BlueVMMemory Final
 	Field gcroots:BlueGCNode, stack:Byte Ptr
 	Field newSpace:Byte Ptr, cpySpace:Byte Ptr, oldPtrSpace:Byte Ptr[], oldStrSpace:Byte Ptr[], bigSpace:Byte Ptr[]
 	Field toFinalize:BlueGCNode, weakTables:BlueGCNode
-	Field codeSpace:Byte Ptr[], codeFreeList:Byte Ptr
+	Field codeSpace:Byte Ptr[], returnToNative:Int Ptr
 	
 	Field memAlloced:Int
 	Field edenThreshold:Int, sizeThreshold:Int
@@ -125,7 +125,7 @@ Type BlueVMMemory Final
 		newSpace = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpace = AlignedAlloc(EDENSIZE, PAGESZ)
 		newPtr = 0
 		
-		AddCodePage()
+		AddCodePage() ; returnToNative = Int Ptr(codeSpace[0]) + 1
 		AddPage(oldStrSpace, PAGEMETASZ)
 		AddPage(oldPtrSpace, PAGEBITMAPSZ)
 	End Method
