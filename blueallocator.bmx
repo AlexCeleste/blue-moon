@@ -88,7 +88,7 @@ End Type
 
 Type BlueVMMemory Final
 	Const PAGESZ:Int = 1048576, PAGEBITMAPSZ:Int = 16384, PAGEMETASZ:Int = 256
-	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, BIGOBJECTSZ:Int = 500000
+	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, STACKPROTECT:Int = 4096 * 3, BIGOBJECTSZ:Int = 500000
 	Const STACKFRAMESZ:Int = 8 * 4, BYTECODESZ:Int = 8 * 4
 		
 	Field gcroots:BlueGCNode, stack:Byte Ptr
@@ -123,7 +123,7 @@ Type BlueVMMemory Final
 	
 	Method New()
 		stack = AlignedAlloc(STACKSZ, PAGESZ)
-		' add protection to end of stack
+		PageSetProtected(stack + STACKSZ - STACKPROTECT, STACKPROTECT)	' add protection to end of stack
 		newSpace = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpace = AlignedAlloc(EDENSIZE, PAGESZ)
 		newPtr = 0
 		
