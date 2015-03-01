@@ -262,6 +262,7 @@ Type BlueJIT Final
 				Case opc.SETTAB, opc.GETTAB
 					codep[ISIZE] = $90 ; Int Ptr(codep + ISIZE + 1)[0] = $90909090	'nops; the space is needed in the bytecode
 					Long Ptr Ptr(bytecodep + 2)[0] = ktable + ip[1]
+					Long Ptr Ptr(bytecodep + 2)[1] = Null	'inline cache space
 					
 				Case opc.CALL
 					Short Ptr(bytecodep)[1] = ip[1]
@@ -467,7 +468,7 @@ Type BlueJIT Final
 	End Function
 	
 	Function JMP(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "wait, why are we here?"
+		RuntimeError "wait, why are we here?"
 	End Function
 	Function JIF(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "JIF      //"
@@ -540,7 +541,6 @@ Type BlueJIT Final
 			Local voff:Int = STACKFRAME_INC + 4 * newBC.upvars
 			newStk.varp = Long Ptr(Byte Ptr(newStk) + voff)
 			newStk.func = newBC
-		'	newStk._IP = 0
 			
 			Local argc_actual:Int = Short Ptr(rp)[1], argc_required:Int = newBC.pcount
 		'	Local argc_min:Int ; If argc_actual < argc_required Then argc_min = argc_actual Else argc_min = argc_required
