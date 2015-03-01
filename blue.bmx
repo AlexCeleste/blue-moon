@@ -208,17 +208,25 @@ Type BlueJIT Final
 		
 		If opTbl = Null Then InitOpTbl()
 		
-		Local sz:Int = PROLOGUESZ + icount * ISIZE
+		' compute executable code size
+		Local sz:Int = PROLOGUESZ
+		For Local i:Int = 0 Until icount
+			Select ins[i * 8]
+			'	Case opc.SETTAB, opc.GETTAB
+			'		sz :+ ISIZE * 2
+				Default
+					sz :+ ISIZE
+			End Select
+		Next
 		
 		' allocate executable space
-		Local blocks:Int[] = vm.mem.AllocCodeBlock(PROLOGUESZ + icount * ISIZE)
-		Local code:Byte Ptr = Byte Ptr(blocks[0]), rsize:Int = blocks[1] - (blocks[1] Mod ISIZE)
+		Local code:Byte Ptr = vm.mem.AllocCodeBlock(PROLOGUESZ + icount * ISIZE)
 		
 		For Local p:Int = 0 Until PROLOGUESZ	'emplace prologue (used for calling in from native only)
 			code[p] = Prologue[p]
 		Next
 		Byte Ptr Ptr(code + 14)[0] = Byte Ptr(bytecode)	'replace the ########
-		code :+ PROLOGUESZ ; rsize :- PROLOGUESZ	'easier to not have to take this into account below
+		code :+ PROLOGUESZ	'easier to not have to take this into account below
 		
 		Local codePage:Int Ptr = Int Ptr(Int(code) & ((Int(2^12)-1) Shl 20))	'return-to-native for the page
 		codePage[1] = $c30cc483	'add $12, %esp ; ret  - i.e. restore the stack to normal
@@ -226,47 +234,38 @@ Type BlueJIT Final
 		Local ktable:Double Ptr = Double Ptr(ins + 8 * bytecode.icount + 8 * bytecode.upvars)
 		
 		' generate machine code!
-		Repeat
+		For Local i:Int = 0 Until icount	'emplace opcode calls and supporting bytecode data
+			Local codep:Byte Ptr = code + i * ISIZE, bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
+			codep[0] = $e8	'call
+			Local bi:Int = i * 8, op:Int = ins[bi], ip:Int Ptr = Int Ptr(ins + bi), func:Byte Ptr = opTbl[op]
+			Byte Ptr Ptr(codep + 1)[0] = func - Int(codep + ISIZE)
 			
-			Local i:Int = 0, codep:Byte Ptr = code
-			While rsize	'emplace opcode calls and supporting bytecode data
-				Local bytecodep:Byte Ptr = Byte Ptr(Int(codep) + vm.mem.PAGESZ)
-				codep[0] = $e8	'call
-				Local bi:Int = i * 8, op:Int = ins[bi], ip:Int Ptr = Int Ptr(ins + bi), func:Byte Ptr = opTbl[op]
-				Byte Ptr Ptr(codep + 1)[0] = func - Int(codep + ISIZE)
-				
-				bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]	'used by most, may get overwritten
-				
-				Select op
-					Case opc.LOADSI, opc.CLOSURE, opc.RET, opc.POSTCALL
-						Int Ptr(bytecodep + 1)[0] = ip[1]
-						
-					Case opc.LOADK
-						Double Ptr Ptr(bytecodep + 1)[0] = ktable + ip[1]
-						
-					Case opc.SETTABSI, opc.GETTABSI
-						Short Ptr(bytecodep)[1] = ip[1]
-						
-					Case opc.CALL
-						Short Ptr(bytecodep)[1] = ip[1]
-						
-					Case opc.JIF, opc.JNOT
-						Int Ptr(bytecodep + 1)[0] = Int(codep) + ISIZE * ip[1]
-						
-					Case opc.JMP
-						codep[0] = $e9	'use a true jump
-						Int Ptr(codep + 1)[0] = ISIZE * (ip[1] - 1)
-						
-					Default	'binary operations A = B op C
-						bytecodep[2] = ip[1]
-				End Select
-				
-				rsize :- ISIZE ; codep :+ ISIZE ; icount :- 1
-				i :+ 1
-			Wend
+			bytecodep[0] = ins[bi + 1] ; bytecodep[1] = ins[bi + 2]	'used by most, may get overwritten
 			
-			'deal with overflowing code sections here
-		Until icount = 0
+			Select op
+				Case opc.LOADSI, opc.CLOSURE, opc.RET, opc.POSTCALL
+					Int Ptr(bytecodep + 1)[0] = ip[1]
+					
+				Case opc.LOADK
+					Double Ptr Ptr(bytecodep + 1)[0] = ktable + ip[1]
+					
+				Case opc.SETTABSI, opc.GETTABSI
+					Short Ptr(bytecodep)[1] = ip[1]
+					
+				Case opc.CALL
+					Short Ptr(bytecodep)[1] = ip[1]
+					
+				Case opc.JIF, opc.JNOT
+					Int Ptr(bytecodep + 1)[0] = Int(codep) + ISIZE * ip[1]
+					
+				Case opc.JMP
+					codep[0] = $e9	'use a true jump
+					Int Ptr(codep + 1)[0] = ISIZE * (ip[1] - 1)
+					
+				Default	'binary operations A = B op C
+					bytecodep[2] = ip[1]
+			End Select
+		Next
 		
 		Return code - PROLOGUESZ
 	End Function

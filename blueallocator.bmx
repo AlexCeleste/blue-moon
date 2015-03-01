@@ -189,14 +189,13 @@ Type BlueVMMemory Final
 		End Select
 	End Method
 	
-	Method AllocCodeBlock:Int[](sz:Int)	'this can return less than the requested size; up to the JIT to request more
+	Method AllocCodeBlock:Byte Ptr(sz:Int)	'this returns the requested size, allocating it externally if necessary
 		Local page:Byte Ptr = codeSpace[0], pNewPtr:Int = Int Ptr(page)[0]
 		If pNewPtr + sz > PAGESZ
-			AddCodePage() ; Int Ptr(page)[0] = PAGESZ
-			Return [Int(page) + pNewPtr, PAGESZ - pNewPtr]
+			RuntimeError "not yet implemented"
 		Else
 			Int Ptr(page)[0] :+ sz
-			Return [Int(page) + pNewPtr, sz]
+			Return page + pNewPtr
 		EndIf
 	End Method
 	
