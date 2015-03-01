@@ -213,8 +213,8 @@ Type BlueJIT Final
 		For Local i:Int = 0 Until icount
 			opPos[i] = codesize	'finalized below
 			Select ins[i * 8]
-			'	Case opc.SETTAB, opc.GETTAB
-			'		codesize :+ ISIZE * 2
+				Case opc.SETTAB, opc.GETTAB
+					codesize :+ ISIZE * 2
 				Default
 					codesize :+ ISIZE
 			End Select
@@ -259,11 +259,14 @@ Type BlueJIT Final
 				Case opc.SETTABSI, opc.GETTABSI
 					Short Ptr(bytecodep)[1] = ip[1]
 					
+				Case opc.SETTAB, opc.GETTAB
+					codep[ISIZE] = $90 ; Int Ptr(codep + ISIZE + 1)[0] = $90909090	'nops; the space is needed in the bytecode
+					
 				Case opc.CALL
 					Short Ptr(bytecodep)[1] = ip[1]
 					
 				Case opc.JIF, opc.JNOT
-					Int Ptr(bytecodep + 1)[0] = Int(codep) + ISIZE * ip[1]
+					Int Ptr(bytecodep + 1)[0] = opPos[i + ip[1]]
 					
 				Case opc.JMP
 					codep[0] = $e9	'use a true jump
@@ -325,6 +328,7 @@ Type BlueJIT Final
 	Function GETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function SETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Print "SETTAB   //"
 	End Function
 	Function SETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "SETTABSI //"
