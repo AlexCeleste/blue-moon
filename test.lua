@@ -14,7 +14,7 @@ end--]]
 local y = 2
 local x = 0
 local function f(x) return x + y end
-while x ~= 10000000 do
+while x ~= 8 do--10000000 do
 	x = f(x)
 end--]]
 --function f(x) return function() return x end end

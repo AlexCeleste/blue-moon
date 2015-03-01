@@ -28,3 +28,5 @@ WISHLIST:
 
 - inline more operations
 - implement some operations in assembly and import
+
+- string interning?

@@ -95,7 +95,7 @@ Type BlueVMMemory Final
 	Field newSpace:Byte Ptr, cpySpace:Byte Ptr, oldPtrSpace:Byte Ptr[], oldStrSpace:Byte Ptr[], bigSpace:Byte Ptr[]
 	Field toFinalize:BlueGCNode, weakTables:BlueGCNode
 	Field codeSpace:Byte Ptr[], returnToNative:Int Ptr
-	Field bytecodes:Byte Ptr[]
+	Field bytecodes:Byte Ptr[], kstrings:Byte Ptr[]
 	
 	Field memAlloced:Int
 	Field edenThreshold:Int, sizeThreshold:Int
@@ -174,7 +174,31 @@ Type BlueVMMemory Final
 	Method AllocThread()
 	End Method
 	
-	Method AllocConstant:Byte Ptr()
+	Method AllocConstant:Byte Ptr(size:Int, charp:Short Ptr)	'string constants (the only other kind are doubles)
+		Local hash:Int = 5381
+		For Local c:Int = 0 Until size	'do this first so we can check for duplicates easily
+			hash = (hash * 33) ~ charp[c]	'djb2
+		Next
+		For Local k:Int = 0 Until kstrings.Length
+			If hash = Int Ptr(kstrings[k])[3] And size = Int Ptr(kstrings[k])[2]
+				Local eq:Int = True
+				For Local ch:Int = 0 Until size
+					If charp[ch] <> Short Ptr(kstrings[k] + 16)[ch] Then eq = False ; Exit
+				Next
+				If eq Then Return kstrings[k] + 8	'if it already exists, share it
+			EndIf
+		Next
+		
+		Local ret:Byte Ptr = MemAlloc(8 + 8 + size * 2), destp:Short Ptr = Short Ptr(ret + 16)
+		
+		Int Ptr(ret)[0] = (8 + 8 + size * 2) ; Short Ptr(ret + 4)[0] = BlueTypeTag.STR	'set colour too?
+		Int Ptr(ret)[2] = size ; Int Ptr(ret)[3] = hash
+		For Local ch:Int = 0 Until size
+			destp[ch] = charp[ch]
+		Next
+		
+		kstrings :+ [ret]
+		Return ret + 8
 	End Method
 	Method AllocBytecode:Byte Ptr(upvars:Int, kcount:Int, icount:Int)
 		Local ret:Byte Ptr = MemAlloc(4 * BYTECODESZ + 8 * kcount + 8 * icount + 8 * upvars)	'not here to do malloc's job for it
@@ -193,12 +217,12 @@ Type BlueVMMemory Final
 		If exec Then PageSetRWX(space[0], PAGESZ)
 		Return p
 	End Method
-	Method HeaderSize:Int(space:Byte Ptr[])
-		Select space
-			Case oldPtrSpace ; Return PAGEBITMAPSZ
-			Default          ; Return PAGEMETASZ
-		End Select
-	End Method
+'	Method HeaderSize:Int(space:Byte Ptr[])
+'		Select space
+'			Case oldPtrSpace ; Return PAGEBITMAPSZ
+'			Default          ; Return PAGEMETASZ
+'		End Select
+'	End Method
 	
 	Method AllocCodeBlock:Byte Ptr(sz:Int)	'this returns the requested size, allocating it externally if necessary
 		Local page:Byte Ptr = codeSpace[0], pNewPtr:Int = Int Ptr(page)[0]
@@ -210,7 +234,7 @@ Type BlueVMMemory Final
 		EndIf
 	End Method
 	
-	Method AllocObject:Byte Ptr(sz:Int, tag:Int)
+	Method AllocObject:Byte Ptr(sz:Int, tag:Short)
 		sz :+ 8 ; Local ret:Byte Ptr
 		If sz < BIGOBJECTSZ
 			If newPtr + sz > EDENSIZE Then Collect()
@@ -221,11 +245,11 @@ Type BlueVMMemory Final
 			bigSpace :+ [ret]
 			' track as part of allocated memory
 		EndIf
-		Int Ptr(ret)[0] = sz
+		Int Ptr(ret)[0] = sz ; Short Ptr(ret + 4)[0] = tag
 		Return ret + 8
 	End Method
 	
-	Function PtrToVal:Long(p:Byte Ptr, tag:Int)
+	Function PtrToVal:Long(p:Byte Ptr, tag:Short)
 		Local ret:Long, rp:Int Ptr = Int Ptr(Varptr(ret))
 		rp[0] = Int(p) ; rp[1] = BlueTypeTag.NANBOX | tag
 		Return ret

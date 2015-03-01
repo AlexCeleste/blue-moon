@@ -109,7 +109,7 @@ Type BlueVM
 			If sz > 2	'strings have size > 2
 				Local length:Double, lp:Int Ptr = Int Ptr(Varptr(length))
 				lp[0] = buf[koff] ; lp[1] = buf[koff + 1]
-				Local s:Byte Ptr = mem.AllocString(length, Short Ptr(Varptr(buf[koff + 2])))
+				Local s:Byte Ptr = mem.AllocConstant(length, Short Ptr(Varptr(buf[koff + 2])))
 				ktbl[k] = mem.PtrToVal(s, BlueTypeTag.STR)
 			Else
 				Local d:Double, dp:Int Ptr = Int Ptr(Varptr(d))
