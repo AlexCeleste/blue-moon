@@ -123,9 +123,12 @@ Type BlueVM
 			Local foff:Int = buf[3 + f]
 			Local ic:Int = buf[foff + 1], kc:Int = buf[foff + 2], pc:Int = buf[foff + 3], uc:Int = buf[foff + 5], fsz:Int = buf[foff + 6]
 			
-			Local b:Bytecode = BPtoBC(mem.AllocObjectOldSpace(mem.oldStrSpace, (8 + 2 * (uc + uc Mod 2) + 2 * kc + 2 * ic) * 4, BlueTypeTag.BCODE))
-			b.idMod = idMod ; b.kcount = kc ; b.pcount = pc ; b.upvars = uc + (uc Mod 2)	'round up for alignment
-			b.frameSz = BlueJIT.STACKFRAMESZ + b.upvars * 8 + fsz * 8 ; b.icount = ic ; b.vm = convert(Self)
+			Local b:Bytecode
+			Repeat
+				Local bp:Byte Ptr = mem.AllocBytecode(uc + uc Mod 2, kc, ic) ; b = BPtoBC(bp)
+			Until True
+			b.idMod = idMod ; b.kcount = kc ; b.pcount = pc ; b.upvars = uc + uc Mod 2	'round up for alignment
+			b.frameSz = mem.STACKFRAMESZ + b.upvars * 8 + fsz * 8 ; b.icount = ic ; b.vm = convert(Self)
 			
 			Local ib:Int Ptr = Int Ptr(Byte Ptr(b) + 4) + 8 + 2 * ic
 			For Local u:Int = 0 Until uc
@@ -283,7 +286,7 @@ Type BlueJIT Final
 	End Function
 	
 	
-	Const STACKFRAMESZ:Int = 8 * 4, BYTECODESZ:Int = 8 * 4, STACKFRAME_INC:Int = STACKFRAMESZ + 4, BYTECODE_INC:Int = BYTECODESZ + 4
+	Const STACKFRAME_INC:Int = BlueVMMemory.STACKFRAMESZ + 4, BYTECODE_INC:Int = BlueVMMemory.BYTECODESZ + 4
 	Const IP_OFFSET:Int = BlueVMMemory.PAGESZ - ISIZE
 	
 	

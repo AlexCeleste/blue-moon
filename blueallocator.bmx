@@ -88,12 +88,14 @@ End Type
 
 Type BlueVMMemory Final
 	Const PAGESZ:Int = 1048576, PAGEBITMAPSZ:Int = 16384, PAGEMETASZ:Int = 256
-	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, FUNCSIZE:Int = 120, BIGOBJECTSZ:Int = 500000
+	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, BIGOBJECTSZ:Int = 500000
+	Const STACKFRAMESZ:Int = 8 * 4, BYTECODESZ:Int = 8 * 4
 		
 	Field gcroots:BlueGCNode, stack:Byte Ptr
 	Field newSpace:Byte Ptr, cpySpace:Byte Ptr, oldPtrSpace:Byte Ptr[], oldStrSpace:Byte Ptr[], bigSpace:Byte Ptr[]
 	Field toFinalize:BlueGCNode, weakTables:BlueGCNode
 	Field codeSpace:Byte Ptr[], returnToNative:Int Ptr
+	Field bytecodes:Byte Ptr[]
 	
 	Field memAlloced:Int
 	Field edenThreshold:Int, sizeThreshold:Int
@@ -131,6 +133,7 @@ Type BlueVMMemory Final
 	End Method
 	Method Delete()
 		' unmap a bunch of stuff
+		' free a bunch of other stuff
 	End Method
 	
 	Method Write(slot:Long Ptr, val:Long)	'write barrier around old/big-space
@@ -169,6 +172,14 @@ Type BlueVMMemory Final
 		Return ret
 	End Method
 	Method AllocThread()
+	End Method
+	
+	Method AllocConstant:Byte Ptr()
+	End Method
+	Method AllocBytecode:Byte Ptr(upvars:Int, kcount:Int, icount:Int)
+		Local ret:Byte Ptr = MemAlloc(4 * BYTECODESZ + 8 * kcount + 8 * icount + 8 * upvars)	'not here to do malloc's job for it
+		bytecodes :+ [ret]
+		Return ret
 	End Method
 	
 	Method AddCodePage()
@@ -210,17 +221,6 @@ Type BlueVMMemory Final
 			bigSpace :+ [ret]
 			' track as part of allocated memory
 		EndIf
-		Int Ptr(ret)[0] = sz
-		Return ret + 8
-	End Method
-	Method AllocObjectOldSpace:Byte Ptr(space:Byte Ptr[] Var, sz:Int, tag:Int)
-		sz :+ 8 ; If sz Mod 8 Then sz :+ (8 - sz Mod 8)
-		Local ret:Byte Ptr, page:Byte Ptr = space[0]
-		Local pNewPtr:Int = Int Ptr(page)[0]
-		If pNewPtr + sz > PAGESZ
-			page = AddPage(space, HeaderSize(space)) ; pNewPtr = Int Ptr(page)[0]
-		EndIf
-		ret = page + pNewPtr ; Int Ptr(page)[0] = pNewPtr + sz
 		Int Ptr(ret)[0] = sz
 		Return ret + 8
 	End Method
