@@ -205,6 +205,12 @@ Type BlueVMMemory Final
 		bytecodes :+ [ret]
 		Return ret
 	End Method
+	Method MaxStringToVal:Long(s:String)	'allocates as a constant; use sparingly
+		Local ch:Short Ptr = s.ToWString(), ret:Byte Ptr = AllocConstant(s.Length, ch), val:Long
+		MemFree(ch)
+		Int Ptr(Varptr(val))[0] = Int(ret) ; Int Ptr(Varptr(val))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
+		Return val
+	End Method
 	
 	Method AddCodePage()
 		codeSpace = [AlignedAlloc(2 * PAGESZ, PAGESZ)] + codeSpace

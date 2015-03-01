@@ -2,12 +2,14 @@
 TODO:
 
 - code buffer allocation needs to be completed
-- constant allocation needs to be implemented
 - gc needs to be implemented
   - allocator needs to be tidied up
   - remaining object layouts need to be specified and stuck to
 - need to be able to create and fill out Lua objects/values from native
+  - load native objects as Lua objects
 - native calls need to be implemented
+- metamethod lookup needs to be implemented
+- operators and instructions need to be filled out
 - standard library needs to be written
 - coroutines need to be designed and implemented
 
