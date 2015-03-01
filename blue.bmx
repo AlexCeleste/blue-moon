@@ -261,6 +261,7 @@ Type BlueJIT Final
 					
 				Case opc.SETTAB, opc.GETTAB
 					codep[ISIZE] = $90 ; Int Ptr(codep + ISIZE + 1)[0] = $90909090	'nops; the space is needed in the bytecode
+					Long Ptr Ptr(bytecodep + 2)[0] = ktable + ip[1]
 					
 				Case opc.CALL
 					Short Ptr(bytecodep)[1] = ip[1]
@@ -329,6 +330,11 @@ Type BlueJIT Final
 	End Function
 	Function SETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "SETTAB   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		Local tabp:Byte Ptr = varp + rp[0]
+		Print "  tag: " + Bin(Int Ptr(kp)[1])
+		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], kp[0], varp[rp[1]])
 	End Function
 	Function SETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "SETTABSI //"
