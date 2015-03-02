@@ -7,6 +7,7 @@ TODO:
   - remaining object layouts need to be specified and stuck to
 - need to be able to create and fill out Lua objects/values from native
   - load native objects as Lua objects
+  - add type checks
 - native calls need to be implemented
 - metamethod lookup needs to be implemented
 - operators and instructions need to be filled out

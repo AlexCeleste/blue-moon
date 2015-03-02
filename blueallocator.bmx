@@ -122,6 +122,7 @@ Type BlueVMMemory Final
 	End Function
 	
 	Method New()
+		gcroots = New BlueGCNode	'dummy header
 		stack = AlignedAlloc(STACKSZ, PAGESZ)
 		PageSetProtected(stack + STACKSZ - STACKPROTECT, STACKPROTECT)	' add protection to end of stack
 		newSpace = AlignedAlloc(EDENSIZE, PAGESZ) ; cpySpace = AlignedAlloc(EDENSIZE, PAGESZ)
@@ -190,7 +191,6 @@ Type BlueVMMemory Final
 		Next
 		
 		Local ret:Byte Ptr = MemAlloc(8 + 8 + size * 2), destp:Short Ptr = Short Ptr(ret + 16)
-		
 		Int Ptr(ret)[0] = (8 + 8 + size * 2) ; Short Ptr(ret + 4)[0] = BlueTypeTag.STR	'set colour too?
 		Int Ptr(ret)[2] = size ; Int Ptr(ret)[3] = hash
 		For Local ch:Int = 0 Until size
@@ -210,6 +210,9 @@ Type BlueVMMemory Final
 		MemFree(ch)
 		Int Ptr(Varptr(val))[0] = Int(ret) ; Int Ptr(Varptr(val))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
 		Return val
+	End Method
+	Method RootObj:BlueGCNode(o:Byte Ptr)
+		gcroots.nx = BlueGCNode.Insert(o, gcroots, gcroots.nx) ; Return gcroots.nx
 	End Method
 	
 	Method AddCodePage()
@@ -272,6 +275,17 @@ Type BlueGCNode
 		If pv Then pv.nx = nx ; pv = Null
 		If nx Then nx.pv = pv ; nx = Null
 	End Method
+	
+	Function Cons:BlueGCNode(val:Byte Ptr, nx:BlueGCNode)
+		Local n:BlueGCNode = New Self
+		n.nx = nx ; n.val = val
+		Return n
+	End Function
+	Function Insert:BlueGCNode(val:Byte Ptr, pv:BlueGCNode, nx:BlueGCNode)
+		Local n:BlueGCNode = New Self
+		n.pv = pv ; n.nx = nx ; n.val = val
+		Return n
+	End Function
 End Type
 
 Private

@@ -70,12 +70,20 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-Print "running..."
+'Print "running..."
 Local t:Int = MilliSecs()
-Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
+'Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
 t = MilliSecs() - t
-Print t
-Print "run complete"
+'Print t
+'Print "run complete"
+
+
+Local tbl:BlueLuaVal = vm.NewTable(), n:BlueLuaVal = vm.ValueFromNumber(6.5)
+tbl.Set("foo", n) ; tbl.Set("bar", vm.ValueFromNumber(7.5)) ; tbl.Set("baz", vm.ValueFromNumber(9.7:Double))
+Local res:BlueLuaVal = tbl.Get("foo")
+Print Double Ptr(Varptr(res.val))[0]
+res = tbl.Get("bar") ; Print Double Ptr(Varptr(res.val))[0]
+res = tbl.Get("baz") ; Print Double Ptr(Varptr(res.val))[0]
 
 
 Print "done."
@@ -93,9 +101,10 @@ End
 Type BlueVM
 	Field mem:BlueVMMemory, _ENV:BlueLuaVal
 	Field idMod:Int, funIndex:Bytecode Ptr, _fiSz:Int
+	Field strs:TMap
 	
 	Method New()
-		mem = New BlueVMMemory
+		mem = New BlueVMMemory ; strs = CreateMap()
 	End Method
 	
 	' Load the procedures and constants of a compiled binary into the VM, returning the function representing the program toplevel
@@ -173,6 +182,25 @@ Type BlueVM
 	End Method
 	
 	Method CallToLua()
+	End Method
+	
+	Method NewTable:BlueLuaVal()
+		Local t:Byte Ptr = mem.AllocTable(Null), ret:BlueLuaVal = BlueLuaVal.Make(Self)
+		Byte Ptr Ptr(Varptr(ret.val))[0] = t ; Int Ptr(Varptr(ret.val))[1] = BlueTypeTag.NANBOX | BlueTypeTag.TBL
+		ret._obj = mem.RootObj(t)
+		Return ret
+	End Method
+	
+	Method ValueFromObject:BlueLuaVal(o:Object)
+	End Method
+	Method ValueFromNumber:BlueLuaVal(n:Double)
+		Local v:BlueLuaVal = New BlueLuaVal
+		Double Ptr(Varptr(v.val))[0] = n
+		Return v
+	End Method
+	Method ValueFromString:BlueLuaVal(s:String)
+	End Method
+	Method ValueFromBinary:BlueLuaVal(b:Byte Ptr)
 	End Method
 	
 	Global BPtoBC:Bytecode(p:Byte Ptr) = Byte Ptr(BlueJIT.PointerToExtType)
@@ -600,15 +628,58 @@ Type BlueJIT Final
 		Return b
 	End Function
 	Function PointerToExtType:Byte Ptr(p:Byte Ptr)	'horrible pointer abuse (increment down so we can ignore the nonexistent vtbl)
-		Return p - 4'sizeof(Byte Ptr)
+		Return p - SizeOf(Byte Ptr(0))
 	End Function
 	Global BPtoS:Stack(p:Byte Ptr) = Byte Ptr(BlueJIT.PointerToExtType)
 End Type
 
 Type BlueLuaVal
-	Field _obj:BlueGCNode
-
-	Method Call()
+	Field _obj:BlueGCNode, val:Long, _vm:BlueVM
+	
+	Method Call:BlueLuaVal(arg:BlueLuaVal[])
+	End Method
+	
+	Method Set(f:String, val:BlueLuaVal)
+		'need to add type checks to these operators
+		Local k:BlueGCNode = BlueGCNode(_vm.strs.ValueForKey(f)), ks:Long
+		If k
+			Byte Ptr Ptr(Varptr(ks))[0] = k.val ; Int Ptr(Varptr(ks))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
+		Else
+			ks = _vm.mem.MaxStringToVal(f)
+			k = _vm.mem.RootObj(Byte Ptr(Int(ks)))
+			_vm.strs.Insert(f, k)
+		EndIf
+		BlueTable.Set(_vm.mem, _obj.val, ks, val.val)
+	End Method
+	Method Get:BlueLuaVal(f:String)
+		Local k:BlueGCNode = BlueGCNode(_vm.strs.ValueForKey(f)), ks:Long
+		If k
+			Byte Ptr Ptr(Varptr(ks))[0] = k.val ; Int Ptr(Varptr(ks))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
+			Local ret:Long = BlueTable.Get(_obj.val, ks), tag:Int = Int Ptr(Varptr(ret))[1]
+			If tag = (BlueTypeTag.NANBOX | BlueTypeTag.NIL)
+				Return Null
+			ElseIf tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX
+				Return _vm.ValueFromNumber(Double Ptr(Varptr(ret))[0])
+			Else
+				Local v:BlueLuaVal = New Self
+				v.val = ret ; v._vm = _vm ; v._obj = _vm.mem.RootObj(Byte Ptr Ptr(Varptr(ret))[0])
+				Return v
+			EndIf
+		Else
+			Return Null
+		EndIf
+	End Method
+	
+	Method Unpin()
+		If _obj Then _obj = Null ; val = 0
+	End Method
+	Function Make:BlueLuaVal(vm:BlueVM)
+		Local v:BlueLuaVal = New Self
+		v._vm = vm
+		Return v
+	End Function
+	Method Delete()
+		If _obj Then _obj.Remove()
 	End Method
 End Type
 
