@@ -366,7 +366,7 @@ Type BlueJIT Final
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local tabp:Byte Ptr = varp + rp[0]
 		Print "  tag: " + Bin(Int Ptr(kp)[1])
-		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], kp[0], varp[rp[1]])
+		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], kp[0], varp[rp[1]])
 	End Function
 	Function SETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "SETTABSI //"
@@ -375,14 +375,14 @@ Type BlueJIT Final
 		Local tabp:Byte Ptr = varp + rp[0]
 		Print "  " + Short Ptr(rp)[1]
 		Local key:Long ; Double Ptr(Varptr(key))[0] = Short Ptr(rp)[1]
-		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], key, varp[rp[1]])
+		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], key, varp[rp[1]])
 	End Function
 	Function GETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "GETTABI  //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local tabp:Byte Ptr = varp + rp[1]
 		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
-		Local val:Long = BlueTable.Get(Byte Ptr Ptr(tabp)[0], varp[rp[2]])
+		Local val:Long = BlueTable.RawGet(Byte Ptr Ptr(tabp)[0], varp[rp[2]])
 		Local v:Double = Double Ptr(Varptr(val))[0]
 		Print "  " + v
 		varp[rp[0]] = val
@@ -394,7 +394,7 @@ Type BlueJIT Final
 		Local tabp:Byte Ptr = varp + rp[0]
 		Print "  " + Double Ptr(varp)[rp[2]] + " " + Double Ptr(varp)[rp[1]]
 		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
-		BlueTable.Set(vm.mem, Byte Ptr Ptr(tabp)[0], varp[rp[2]], varp[rp[1]])
+		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], varp[rp[2]], varp[rp[1]])
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "GETUPV   //"
@@ -649,13 +649,13 @@ Type BlueLuaVal
 			k = _vm.mem.RootObj(Byte Ptr(Int(ks)))
 			_vm.strs.Insert(f, k)
 		EndIf
-		BlueTable.Set(_vm.mem, _obj.val, ks, val.val)
+		BlueTable.RawSet(_vm.mem, _obj.val, ks, val.val)
 	End Method
 	Method Get:BlueLuaVal(f:String)
 		Local k:BlueGCNode = BlueGCNode(_vm.strs.ValueForKey(f)), ks:Long
 		If k
 			Byte Ptr Ptr(Varptr(ks))[0] = k.val ; Int Ptr(Varptr(ks))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
-			Local ret:Long = BlueTable.Get(_obj.val, ks), tag:Int = Int Ptr(Varptr(ret))[1]
+			Local ret:Long = BlueTable.RawGet(_obj.val, ks), tag:Int = Int Ptr(Varptr(ret))[1]
 			If tag = (BlueTypeTag.NANBOX | BlueTypeTag.NIL)
 				Return Null
 			ElseIf tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX

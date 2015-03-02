@@ -16,7 +16,50 @@ End Extern
 Public
 
 Type BlueTable Final
-	Function Get:Long(tbl:Byte Ptr, key:Long)
+	' retrieve the slot *for* a key's value, null if no available slot exists (to be used by non-raw index/set operations)
+	Function GetSlot:Byte Ptr(tbl:Byte Ptr, key:Long, keyslot:Long Ptr Var)	'keyslot will return the slot for the key if it's not an array-slot
+		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int
+		
+		If tag = BlueTypeTag.NANBOX | BlueTypeTag.STR	'string - common case
+			idx = Int Ptr(Int(key))[1]
+		ElseIf tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX	'number
+			Local d:Double ; Long Ptr(Varptr(d))[0] = key ; idx = Abs Int(d)
+			If d = idx	'int key
+				Local arr:Byte Ptr = Byte Ptr Ptr(tbl)[3]
+				If arr And idx < Int Ptr(arr)[-1] Then Return Long Ptr(arr) + idx	'if this is nil, it won't be in the hash part anyway
+			Else
+				d = frexp(d, Varptr(idx)) * ($7fffffff - 1024)	'INT_MAX - DBL_MAX_EXP
+				idx = Abs(idx) + Int(d)
+			EndIf
+		ElseIf tag = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'nil -> nil
+			Return Null
+		Else	'pointer (needs improvement)
+			idx = Int(key) Shr 3
+		EndIf
+		
+		Local hashpart:Byte Ptr = Byte Ptr Ptr(tbl)[2]
+		If hashpart
+			Local hsize:Int = 1 Shl Int Ptr(hashpart)[-1]
+			idx = idx & (hsize - 1)	'apparently this is faster than Mod
+			For Local i:Int = idx Until hsize	'naive linear probe
+				If Long Ptr(hashpart)[2 * i] = key
+					Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
+					keyslot = kp ; Return kp + 1
+				EndIf
+			Next
+			For Local i:Int = 0 Until idx	'yep
+				If Long Ptr(hashpart)[2 * i] = key
+					Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
+					keyslot = kp ; Return kp + 1
+				EndIf
+			Next
+		EndIf
+		
+		Return Null
+	End Function
+	
+	' retrieve a value from a table, or nil
+	Function RawGet:Long(tbl:Byte Ptr, key:Long)
 		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int
 		
 		If tag = BlueTypeTag.NANBOX | BlueTypeTag.STR	'string - common case
@@ -52,7 +95,8 @@ Type BlueTable Final
 		Return ret
 	End Function
 	
-	Function Set(mem:BlueVMMemory, tbl:Byte Ptr, key:Long, val:Long)
+	' put a value into a table, resizing it if necessary
+	Function RawSet(mem:BlueVMMemory, tbl:Byte Ptr, key:Long, val:Long)
 		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int, slot:Long Ptr = Null, writeKey:Int = False
 		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
 		
@@ -98,7 +142,7 @@ Type BlueTable Final
 		EndIf
 		
 		If slot = Null
-			Resize(mem, tbl, key) ; Set mem, tbl, key, val
+			Resize(mem, tbl, key) ; RawSet mem, tbl, key, val
 		Else
 			mem.Write(slot, val)
 			If writeKey Then mem.Write(slot - 1, key)
@@ -178,12 +222,12 @@ Type BlueTable Final
 		If arraypart
 			For Local i:Int = 0 Until oldasize	'reinsert values
 				Local key:Long ; Double Ptr(Varptr(key))[0] = i
-				Set mem, tbl, key, Long Ptr(arraypart)[i]
+				RawSet mem, tbl, key, Long Ptr(arraypart)[i]
 			Next
 		EndIf
 		If hashpart
 			For Local i:Int = 0 Until 2 ^ oldtsize
-				Set mem, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]
+				RawSet mem, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]
 			Next
 		EndIf
 	End Function
