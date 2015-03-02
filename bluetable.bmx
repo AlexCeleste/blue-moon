@@ -182,7 +182,7 @@ Type BlueTable Final
 			Next
 		EndIf
 		If hashpart
-			For Local i:Int = 0 Until oldtsize
+			For Local i:Int = 0 Until 2 ^ oldtsize
 				Set mem, tbl, Long Ptr(hashpart)[i * 2], Long Ptr(hashpart)[i * 2 + 1]
 			Next
 		EndIf
