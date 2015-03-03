@@ -17,8 +17,9 @@ Public
 
 Type BlueTable Final
 	' retrieve the slot *for* a key's value, null if no available slot exists (to be used by non-raw index/set operations)
-	Function GetSlot:Long Ptr(tbl:Byte Ptr, key:Long, keyslot:Long Ptr Var)	'keyslot will return the slot for the key if it's not an array-slot
+	Function GetSlot:Long Ptr(tbl:Byte Ptr, key:Long, keyslot:Long Ptr Ptr)	'keyslot will return the slot for the key if it's not an array-slot
 		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int
+		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
 		
 		If tag = BlueTypeTag.NANBOX | BlueTypeTag.STR	'string - common case
 			idx = Int Ptr(Int(key))[1]
@@ -31,8 +32,8 @@ Type BlueTable Final
 				d = frexp(d, Varptr(idx)) * ($7fffffff - 1024)	'INT_MAX - DBL_MAX_EXP
 				idx = Abs(idx) + Int(d)
 			EndIf
-		ElseIf tag = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'nil -> nil
-			keyslot = Long Ptr(1) ; Return Null
+		ElseIf tag = NILTAG	'nil -> nil
+			keyslot[0] = Long Ptr(1) ; Return Null
 		Else	'pointer (needs improvement)
 			idx = Int(key) Shr 3
 		EndIf
@@ -42,15 +43,17 @@ Type BlueTable Final
 			Local hsize:Int = 1 Shl Int Ptr(hashpart)[-1]
 			idx = idx & (hsize - 1)	'apparently this is faster than Mod
 			For Local i:Int = idx Until hsize	'naive linear probe
-				If Long Ptr(hashpart)[2 * i] = key
-					Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
-					keyslot = kp ; Return kp + 1
+				Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
+				If kp[0] = key Or Int Ptr(kp)[1] = NILTAG
+					If Int Ptr(kp)[1] = NILTAG Then keyslot[0] = kp
+					Return kp + 1
 				EndIf
 			Next
 			For Local i:Int = 0 Until idx	'yep
-				If Long Ptr(hashpart)[2 * i] = key
-					Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
-					keyslot = kp ; Return kp + 1
+				Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
+				If kp[0] = key Or Int Ptr(kp)[1] = NILTAG
+					If Int Ptr(kp)[1] = NILTAG Then keyslot[0] = kp
+					Return kp + 1
 				EndIf
 			Next
 		EndIf
@@ -60,8 +63,10 @@ Type BlueTable Final
 	
 	' retrieve a value from a table, or nil
 	Function RawGet:Long(tbl:Byte Ptr, key:Long)
-		Local _:Long Ptr, retp:Long Ptr = GetSlot(tbl, key, _), ret:Long
-		If retp
+		Local keyp:Long Ptr = Null, retp:Long Ptr = GetSlot(tbl, key, Varptr(keyp)), ret:Long
+		Print "   valp: " + Hex(Int(retp))
+		Print "   keyp: " + Hex(Int(keyp))
+		If retp And (keyp = Null)
 			ret = retp[0]
 		Else
 			Int Ptr(Varptr(ret))[1] = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'why can't i shift longs?
@@ -111,13 +116,17 @@ Type BlueTable Final
 					
 				EndIf
 			EndIf
-			If slot Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed to increment use count (not pointer)
+			If slot And Int Ptr(slot)[-1] = NILTAG Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed to increment use count (not pointer)
 			writeKey = True
 		EndIf
 		
 		If slot = Null
 			Resize(mem, tbl, key) ; RawSet mem, tbl, key, val
 		Else
+			Local keyp:Long Ptr = Null, valp:Long Ptr = GetSlot(tbl, key, Varptr(keyp))
+			Print "   slot: " + Hex(Int(slot))
+			Print "   valp: " + Hex(Int(valp))
+			Print "   keyp: " + Hex(Int(keyp))
 			mem.Write(slot, val)
 			If writeKey Then mem.Write(slot - 1, key)
 		EndIf
