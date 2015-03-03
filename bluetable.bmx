@@ -45,15 +45,13 @@ Type BlueTable Final
 			For Local i:Int = idx Until hsize	'naive linear probe
 				Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
 				If kp[0] = key Or Int Ptr(kp)[1] = NILTAG
-					If Int Ptr(kp)[1] = NILTAG Then keyslot[0] = kp
-					Return kp + 1
+					keyslot[0] = kp ; Return kp + 1
 				EndIf
 			Next
 			For Local i:Int = 0 Until idx	'yep
 				Local kp:Long Ptr = Long Ptr(hashpart) + 2 * i
 				If kp[0] = key Or Int Ptr(kp)[1] = NILTAG
-					If Int Ptr(kp)[1] = NILTAG Then keyslot[0] = kp
-					Return kp + 1
+					keyslot[0] = kp ; Return kp + 1
 				EndIf
 			Next
 		EndIf
@@ -64,9 +62,7 @@ Type BlueTable Final
 	' retrieve a value from a table, or nil
 	Function RawGet:Long(tbl:Byte Ptr, key:Long)
 		Local keyp:Long Ptr = Null, retp:Long Ptr = GetSlot(tbl, key, Varptr(keyp)), ret:Long
-		Print "   valp: " + Hex(Int(retp))
-		Print "   keyp: " + Hex(Int(keyp))
-		If retp And (keyp = Null)
+		If retp And (keyp <> Long Ptr(1))
 			ret = retp[0]
 		Else
 			Int Ptr(Varptr(ret))[1] = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'why can't i shift longs?
@@ -79,15 +75,16 @@ Type BlueTable Final
 		Local keyp:Long Ptr = Null, valp:Long Ptr = GetSlot(tbl, key, Varptr(keyp))
 		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
 		If valp
-			Print "   valp: " + Hex(Int(valp))
-			Print "   keyp: " + Hex(Int(keyp))
 			mem.Write(valp, val)
 			If keyp
-				mem.Write(keyp, key)
-				Local hashpart:Int Ptr = Int Ptr Ptr(tbl)[2]	'need to add element removal
-				hashpart[-2] :+ 1
+				Local hashpart:Int Ptr = Int Ptr Ptr(tbl)[2]
+				If Int Ptr(valp)[1] <> NILTAG
+					If keyp[0] <> key Then mem.Write(keyp, key) ; hashpart[-2] :+ 1
+				Else	'nil value = remove element
+					mem.Write(keyp, val) ; hashpart[-2] :- 1
+				EndIf
 			EndIf
-		ElseIf keyp = Null
+		ElseIf keyp <> Long Ptr(1)
 			Resize(mem, tbl, key) ; RawSet mem, tbl, key, val
 		EndIf
 	End Function
