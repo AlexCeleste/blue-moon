@@ -368,7 +368,7 @@ Type BlueJIT Final
 	Function GETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "GETTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
-		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[0])[0]
+		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[1])[0]
 		Print "  tag: " + Bin(Int Ptr(kp)[1])
 		Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
 		Print "  slot: " + Hex(Int(slot))
