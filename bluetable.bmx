@@ -17,7 +17,7 @@ Public
 
 Type BlueTable Final
 	' retrieve the slot *for* a key's value, null if no available slot exists (to be used by non-raw index/set operations)
-	Function GetSlot:Byte Ptr(tbl:Byte Ptr, key:Long, keyslot:Long Ptr Var)	'keyslot will return the slot for the key if it's not an array-slot
+	Function GetSlot:Long Ptr(tbl:Byte Ptr, key:Long, keyslot:Long Ptr Var)	'keyslot will return the slot for the key if it's not an array-slot
 		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int
 		
 		If tag = BlueTypeTag.NANBOX | BlueTypeTag.STR	'string - common case
@@ -32,7 +32,7 @@ Type BlueTable Final
 				idx = Abs(idx) + Int(d)
 			EndIf
 		ElseIf tag = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'nil -> nil
-			Return Null
+			keyslot = Long Ptr(1) ; Return Null
 		Else	'pointer (needs improvement)
 			idx = Int(key) Shr 3
 		EndIf
@@ -60,38 +60,12 @@ Type BlueTable Final
 	
 	' retrieve a value from a table, or nil
 	Function RawGet:Long(tbl:Byte Ptr, key:Long)
-		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int
-		
-		If tag = BlueTypeTag.NANBOX | BlueTypeTag.STR	'string - common case
-			idx = Int Ptr(Int(key))[1]
-		ElseIf tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX	'number
-			Local d:Double ; Long Ptr(Varptr(d))[0] = key ; idx = Abs Int(d)
-			If d = idx	'int key
-				Local arr:Byte Ptr = Byte Ptr Ptr(tbl)[3]
-				If arr And idx < Int Ptr(arr)[-1] Then Return Long Ptr(arr)[idx]	'if this is nil, it won't be in the hash part anyway
-			Else
-				d = frexp(d, Varptr(idx)) * ($7fffffff - 1024)	'INT_MAX - DBL_MAX_EXP
-				idx = Abs(idx) + Int(d)
-			EndIf
-		ElseIf tag = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'nil -> nil
-			Return key
-		Else	'pointer (needs improvement)
-			idx = Int(key) Shr 3
+		Local _:Long Ptr, retp:Long Ptr = GetSlot(tbl, key, _), ret:Long
+		If retp
+			ret = retp[0]
+		Else
+			Int Ptr(Varptr(ret))[1] = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'why can't i shift longs?
 		EndIf
-		
-		Local hashpart:Byte Ptr = Byte Ptr Ptr(tbl)[2]
-		If hashpart
-			Local hsize:Int = 1 Shl Int Ptr(hashpart)[-1]
-			idx = idx & (hsize - 1)	'apparently this is faster than Mod
-			For Local i:Int = idx Until hsize	'naive linear probe
-				If Long Ptr(hashpart)[2 * i] = key Then Return Long Ptr(hashpart)[2 * i + 1]
-			Next
-			For Local i:Int = 0 Until idx	'yep
-				If Long Ptr(hashpart)[2 * i] = key Then Return Long Ptr(hashpart)[2 * i + 1]
-			Next
-		EndIf
-		
-		Local ret:Long ; Int Ptr(Varptr(ret))[1] = BlueTypeTag.NANBOX | BlueTypeTag.NIL	'why can't i shift longs?
 		Return ret
 	End Function
 	

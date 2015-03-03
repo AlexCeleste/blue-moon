@@ -70,12 +70,12 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-'Print "running..."
+Print "running..."
 Local t:Int = MilliSecs()
-'Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
+Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
 t = MilliSecs() - t
-'Print t
-'Print "run complete"
+Print t
+Print "run complete"
 
 
 Local tbl:BlueLuaVal = vm.NewTable(), n:BlueLuaVal = vm.ValueFromNumber(6.5)
