@@ -16,8 +16,9 @@ Type Debug_KeyListFold
 		For Local f:FunDef = EachIn funs
 			Node.Fold(f.n, dbg)
 		Next
+		If Not dbg.cache.IsEmpty() Then Print "Debug nodes:"
 		For Local s:String = EachIn dbg.cache.Keys()
-			Print s
+			Print "  " + s
 		Next
 	End Function
 	
