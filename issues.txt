@@ -16,7 +16,9 @@ TODO:
 - coroutines need to be designed and implemented
 
 
-WISHLIST:
+WISHLIST (will do after release 0.1):
+
+- bitwise operators from 5.3
 
 - general code cleanup (esp. in JIT)
 - replace conv() calls with something faster

@@ -68,8 +68,8 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-Function lpr:Long(vm:BlueVM, o:Long)
-	Print vm.mem.ValToMaxString(o)
+Function lpr(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+	Print vm.mem.ValToMaxString(argv[0])
 End Function
 vm._ENV.Set("pr", vm.ValueFromFunction(lpr))
 vm._ENV.Set("quux", vm.ValueFromNumber(7.5))
@@ -646,10 +646,11 @@ Type BlueJIT Final
 			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(newBC) + BYTECODE_INC
 			
 		ElseIf fp[1] = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN	'native call
-			Local fun:Long(vm:BlueVM, v:Long) = Byte Ptr(fp[0]), argv:Long Ptr = varp + rp[1]
+			Local fun(vm:BlueVM, ac:Int, av:Long Ptr, rv:Long Ptr) = Byte Ptr(fp[0])
+			Local argc:Int = Short Ptr(rp)[1], argv:Long Ptr = varp + rp[1], retv:Long Ptr = Long Ptr(Byte Ptr(stk) + stk.func.frameSz)
 			Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
-			DebugStop
-			fun(vm, argv[0])
+			fun(vm, argc, argv, retv)
+			stk.retv = retv
 		Else
 			Return False	'not a function; take appropriate action
 		EndIf
