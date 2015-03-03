@@ -29,6 +29,7 @@ WISHLIST:
 - preallocate array/hash areas for immediate tables
 - faster table query with inline caching on field accesses
 - reseat native stack to use native calls for opc.CALL
+- optimize string indexing to field access
 
 - inline more operations
 - implement some operations in assembly and import

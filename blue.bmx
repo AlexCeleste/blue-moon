@@ -366,16 +366,35 @@ Type BlueJIT Final
 	End Function
 	
 	Function GETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Print "GETTAB   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
+		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[0])[0]
+		Print "  tag: " + Bin(Int Ptr(kp)[1])
+		Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
+		Print "  slot: " + Hex(Int(slot))
+		If (slot = Null) Or (keyslot[0] <> kp[0])	'not in table; invoke metamethod
+			'if keyslot == 1 then it's invalid
+			DebugStop
+		Else
+			varp[rp[0]] = slot[0]
+		EndIf
 	End Function
 	Function GETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function SETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "SETTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
-		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
-		Local tabp:Byte Ptr = varp + rp[0]
+		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[0])[0]
 		Print "  tag: " + Bin(Int Ptr(kp)[1])
-		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], kp[0], varp[rp[1]])
+		Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
+		Print "  slot: " + Hex(Int(slot))
+		If (slot = Null) Or (keyslot[0] <> kp[0])	'not in table; invoke metamethod or rawset
+			'if keyslot == 1 then it's invalid
+			Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+			BlueTable.RawSet(vm.mem, tabp, kp[0], varp[rp[1]])
+		Else
+			slot[0] = varp[rp[1]]
+		EndIf
 	End Function
 	Function SETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 		Print "SETTABSI //"
