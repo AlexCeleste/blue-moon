@@ -463,7 +463,7 @@ Type BlueAssembly
 		' add final return so that jumps don't run off the end
 		inst.AddLast BlueInstr.Make(opc.RET, 0, 0, 0)
 		' remove redundant MOV instructions
-		Self.ReduceMovs(opc)
+	'	Self.ReduceMovs(opc)
 		' resolve targeted jumps and remove dummy target instructions
 		Self.ResolveJumps(opc)
 		' resolve break jumps and remove dummy target instructions

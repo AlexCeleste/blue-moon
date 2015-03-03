@@ -77,7 +77,7 @@ t = MilliSecs() - t
 Print t
 Print "run complete"
 
-
+Rem
 Local tbl:BlueLuaVal = vm.NewTable(), n:BlueLuaVal = vm.ValueFromNumber(6.5)
 tbl.Set("foo", n) ; tbl.Set("bar", vm.ValueFromNumber(7.5)) ; tbl.Set("baz", vm.ValueFromNumber(9.7:Double))
 Local res:BlueLuaVal = tbl.Get("foo")
@@ -85,6 +85,11 @@ Print Double Ptr(Varptr(res.val))[0]
 res = tbl.Get("bar") ; Print Double Ptr(Varptr(res.val))[0]
 res = tbl.Get("baz") ; Print Double Ptr(Varptr(res.val))[0]
 
+Function lpr:BlueLuaVal(o:BlueLuaVal)
+	Print o._vm.mem.ValToMaxString(o.val)
+End Function
+tbl.Set("pr", vm.ValueFromFunction(lpr))
+End Rem
 
 Print "done."
 End
@@ -201,6 +206,12 @@ Type BlueVM
 	Method ValueFromString:BlueLuaVal(s:String)
 	End Method
 	Method ValueFromBinary:BlueLuaVal(b:Byte Ptr)
+	End Method
+	Method ValueFromFunction:BlueLuaVal(f:Byte Ptr)
+		Local v:BlueLuaVal = New BlueLuaVal
+		Byte Ptr Ptr(Varptr(v.val))[0] = f
+		Int Ptr(Varptr(v.val))[1] = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN
+		Return v
 	End Method
 	
 	Global BPtoBC:Bytecode(p:Byte Ptr) = Byte Ptr(BlueJIT.PointerToExtType)

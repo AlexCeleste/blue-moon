@@ -89,6 +89,7 @@ Type BlueTable Final
 		EndIf
 	End Function
 	
+	' resize a table (adds space for the extra key, tries to reshuffle integer-keyed elements for optimal space usage)
 	Function Resize(mem:BlueVMMemory, tbl:Byte Ptr, key:Long)
 		Local hashpart:Byte Ptr = Byte Ptr Ptr(tbl)[2], arraypart:Byte Ptr = Byte Ptr Ptr(tbl)[3]
 		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
