@@ -76,59 +76,19 @@ Type BlueTable Final
 	
 	' put a value into a table, resizing it if necessary
 	Function RawSet(mem:BlueVMMemory, tbl:Byte Ptr, key:Long, val:Long)
-		Local tag:Int = Int Ptr(Varptr(key))[1], idx:Int, slot:Long Ptr = Null, writeKey:Int = False
+		Local keyp:Long Ptr = Null, valp:Long Ptr = GetSlot(tbl, key, Varptr(keyp))
 		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
-		
-		If tag = NILTAG Then Return	'nil is not a valid key
-		
-		If tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX	'if key is an int and less than arraylength
-			Local d:Double ; Long Ptr(Varptr(d))[0] = key ; idx = Abs Int(d)
-			If d = idx
-				Local arraypart:Byte Ptr = Byte Ptr Ptr(tbl)[3]
-				If arraypart <> Null And idx < Int Ptr(arraypart)[-1] Then slot = Long Ptr(arraypart) + idx
-			EndIf
-		EndIf
-		If slot = Null	'elsewise if hashcount < hashsize
-			Local hashpart:Byte Ptr = Byte Ptr Ptr(tbl)[2]
-			If hashpart <> Null
-				Local hsize:Int = 1 Shl Int Ptr(hashpart)[-1]
-				If Int Ptr(hashpart)[-2] < hsize	'there's a slot free somewhere
-					
-					If tag = BlueTypeTag.NANBOX | BlueTypeTag.STR	'string - common case
-						idx = Int Ptr(Int(key))[1]
-					ElseIf tag & BlueTypeTag.NANBOX_CHK <> BlueTypeTag.NANBOX	'non-integer
-						Local d:Double ; Long Ptr(Varptr(d))[0] = key
-						d = frexp(d, Varptr(idx)) * ($7fffffff - 1024)	'INT_MAX - DBL_MAX_EXP
-						idx = Abs(idx) + Int(d)
-					Else	'pointer
-						idx = Int(key) Shr 3
-					EndIf
-					
-					idx = idx & (hsize - 1)	'fastmod
-					For Local i:Int = idx Until hsize
-						If Long Ptr(hashpart)[2 * i] = key Or Int Ptr(hashpart)[4 * i + 1] = NILTAG Then slot = Long Ptr(hashpart) + (2 * i + 1) ; Exit
-					Next
-					If Not slot
-						For Local i:Int = 0 Until idx
-							If Long Ptr(hashpart)[2 * i] = key Or Int Ptr(hashpart)[4 * i + 1] = NILTAG Then slot = Long Ptr(hashpart) + (2 * i + 1) ; Exit
-						Next
-					EndIf
-					
-				EndIf
-			EndIf
-			If slot And Int Ptr(slot)[-1] = NILTAG Then Int Ptr(hashpart)[-2] :+ 1	'no write barrier needed to increment use count (not pointer)
-			writeKey = True
-		EndIf
-		
-		If slot = Null
-			Resize(mem, tbl, key) ; RawSet mem, tbl, key, val
-		Else
-			Local keyp:Long Ptr = Null, valp:Long Ptr = GetSlot(tbl, key, Varptr(keyp))
-			Print "   slot: " + Hex(Int(slot))
+		If valp
 			Print "   valp: " + Hex(Int(valp))
 			Print "   keyp: " + Hex(Int(keyp))
-			mem.Write(slot, val)
-			If writeKey Then mem.Write(slot - 1, key)
+			mem.Write(valp, val)
+			If keyp
+				mem.Write(keyp, key)
+				Local hashpart:Int Ptr = Int Ptr Ptr(tbl)[2]	'need to add element removal
+				hashpart[-2] :+ 1
+			EndIf
+		ElseIf keyp = Null
+			Resize(mem, tbl, key) ; RawSet mem, tbl, key, val
 		EndIf
 	End Function
 	
