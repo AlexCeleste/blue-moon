@@ -34,9 +34,12 @@ function t.f(self2) return self2['v'] end  -- fakeself; test normal calls first
 local y = 0 ; while y ~= 8 do
 	y = y + t['f'](t)
 end--]]
---[ [
+--[[
 local t = { v = 2 }
 function t:f() return self['v'] end
 local y = 0 ; while y ~= 8 do
 	y = y + t:f()
 end--]]
+--[ [
+local x = quux + 2	--assumes existence of test value _ENV.quux
+--]]

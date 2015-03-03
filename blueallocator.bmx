@@ -211,6 +211,15 @@ Type BlueVMMemory Final
 		Int Ptr(Varptr(val))[0] = Int(ret) ; Int Ptr(Varptr(val))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
 		Return val
 	End Method
+	Method ValToMaxString:String(val:Long)
+		'insert type check here (assume string for now)
+		Local obj:Byte Ptr = Byte Ptr(Int(val))
+		Local chars:Short[Int Ptr(obj)[0]]
+		For Local c:Int = 0 Until chars.Length
+			chars[c] = Short Ptr(obj + 8)[c]
+		Next
+		Return String.FromShorts(Short Ptr(chars), chars.Length)
+	End Method
 	Method RootObj:BlueGCNode(o:Byte Ptr)
 		gcroots.nx = BlueGCNode.Insert(o, gcroots, gcroots.nx) ; Return gcroots.nx
 	End Method

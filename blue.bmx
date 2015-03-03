@@ -68,6 +68,12 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
+Function lpr:BlueLuaVal(o:BlueLuaVal)
+	Print o._vm.mem.ValToMaxString(o.val)
+End Function
+vm._ENV.Set("pr", vm.ValueFromFunction(lpr))
+vm._ENV.Set("quux", vm.ValueFromNumber(7.5))
+
 Print "running..."
 Local t:Int = MilliSecs()
 Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
@@ -82,11 +88,6 @@ Local res:BlueLuaVal = tbl.Get("foo")
 Print Double Ptr(Varptr(res.val))[0]
 res = tbl.Get("bar") ; Print Double Ptr(Varptr(res.val))[0]
 res = tbl.Get("baz") ; Print Double Ptr(Varptr(res.val))[0]
-
-Function lpr:BlueLuaVal(o:BlueLuaVal)
-	Print o._vm.mem.ValToMaxString(o.val)
-End Function
-tbl.Set("pr", vm.ValueFromFunction(lpr))
 End Rem
 
 Print "done."
@@ -108,6 +109,7 @@ Type BlueVM
 	
 	Method New()
 		mem = New BlueVMMemory ; strs = CreateMap()
+		_ENV = NewTable()	'rebuild on each run?
 	End Method
 	
 	' Load the procedures and constants of a compiled binary into the VM, returning the function representing the program toplevel
@@ -304,6 +306,12 @@ Type BlueJIT Final
 					Long Ptr Ptr(bytecodep + 2)[0] = ktable + ip[1]
 					Long Ptr Ptr(bytecodep + 2)[1] = Null	'inline cache space
 					
+				Case opc.GETUPV
+					If Int Ptr(ins + icount * 8)[2 * bytecodep[1]] = -1
+						Byte Ptr Ptr(codep + 1)[0] = Byte Ptr(BlueJIT.GETENV) - Int(codep + ISIZE)
+						Byte Ptr Ptr(bytecodep + 1)[0] = Varptr(vm._ENV.val)	'note: doesn't allow _ENV to be changed from Max
+					EndIf
+					
 				Case opc.CALL
 					Short Ptr(bytecodep)[1] = ip[1]
 					
@@ -425,10 +433,18 @@ Type BlueJIT Final
 		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], varp[rp[2]], varp[rp[1]])
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-	'	Print "GETUPV   //"
-		Local varp:Long Ptr = stk.varp, upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC)
-		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, valp:Long Ptr = Long Ptr(upvp[rp[1]])
+		Print "GETUPV   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Print "  " + rp[0] + " " + rp[1] + " " + rp[2]
+		DebugStop
+		Local upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC), valp:Long Ptr = Long Ptr(upvp[rp[1]])
 		varp[rp[0]] = valp[0]
+	End Function
+	Function GETENV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)	'"unlisted" instruction: GETUPV for _ENV is translated into this at load-time
+		Print "GETENV   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Print "  " + rp[0] + " " + Hex(Int Ptr(rp + 1)[0])
+		varp[rp[0]] = Long Ptr Ptr(rp + 1)[0][0]
 	End Function
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
