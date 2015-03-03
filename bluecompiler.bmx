@@ -47,8 +47,10 @@ Type BlueCompiler
 	
 	Function ASTToAssembly:TList(n:TParseNode)
 		Local tbl:NodeTable = Node.FromParse(n), r:Node = tbl.n
+	'	Print "AST: " + r.ToString()
 		
 		r = Node.Fold(r, NormalizeFold.Make(tbl))
+	'	Print "Normalized: " + r.ToString()
 		
 		Local errf:SyntaxErrFold = SyntaxErrFold.Make(tbl)
 		r = Node.Fold(r, errf) ; errf.BreakCheck()
@@ -58,7 +60,7 @@ Type BlueCompiler
 		Local semf:SemanticFold = SemanticFold.Make(r, tbl)
 		r = Node.Fold(r, semf, Node.BOTH)	'fold both ways to push and pop environments
 		SemanticFold.Close(semf, r)
-		
+	'	Print "Semantic'd: " + r.ToString()		
 		Local funs:FunDef[] = FunDef[](semf.funs.ToArray()) ; semf = Null
 		
 		' if we wanted a type checker, it would go here

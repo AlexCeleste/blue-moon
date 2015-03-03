@@ -57,14 +57,12 @@ End Rem
 Local code:BlueBinary = BlueCompiler.CompileFileForLoad(file)
 Local vm:BlueVM = New BlueVM
 Local tl:BlueLuaVal = vm.LoadObjectCode(code)
-'tl.Call()
 
 Local stk:Stack = BlueJIT.BPtoS(vm.mem.stack)
 stk.retIP = Null ; stk.prevBase = Null
 Local vc:Int = 10, upvars:Int = 1
 stk.varp = Long Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
 stk.func = vm.funIndex[0]
-'stk.IP = 0
 stk.argv = Null	'may want to add space?
 stk.retv = Null
 stk.argc = 0

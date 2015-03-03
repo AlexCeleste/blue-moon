@@ -28,9 +28,9 @@ local y = 0 ; while y ~= 4 do
 end--]]
 --[ [
 local t = { v = 2 }
-local function f(self2) return self2['v'] end
+function t.f(self2) return self2['v'] end  -- fakeself; test normal calls first
 local y = 0 ; while y ~= 8 do
-	y = y + f(t)
+	y = y + t['f'](t)
 end--]]
 --local a, b, c = 1, 2, 3
 --a = 6 ; b = 7 ; c = 8
