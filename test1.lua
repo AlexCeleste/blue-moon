@@ -41,5 +41,6 @@ local y = 0 ; while y ~= 8 do
 	y = y + t:f()
 end--]]
 --[ [
-local x = quux + 2	--assumes existence of test value _ENV.quux
+local x = quux + 2	--assumes existence of test value _ENV.quux and _ENV.pr
+pr "hello from Lua!"
 --]]

@@ -68,8 +68,8 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-Function lpr:BlueLuaVal(o:BlueLuaVal)
-	Print o._vm.mem.ValToMaxString(o.val)
+Function lpr:Long(vm:BlueVM, o:Long)
+	Print vm.mem.ValToMaxString(o)
 End Function
 vm._ENV.Set("pr", vm.ValueFromFunction(lpr))
 vm._ENV.Set("quux", vm.ValueFromNumber(7.5))
@@ -645,8 +645,11 @@ Type BlueJIT Final
 			Byte Ptr Ptr(retptr)[-3] = Byte Ptr(newStk)
 			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(newBC) + BYTECODE_INC
 			
-		ElseIf fp[1] = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN
-			'native call
+		ElseIf fp[1] = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN	'native call
+			Local fun:Long(vm:BlueVM, v:Long) = Byte Ptr(fp[0]), argv:Long Ptr = varp + rp[1]
+			Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
+			DebugStop
+			fun(vm, argv[0])
 		Else
 			Return False	'not a function; take appropriate action
 		EndIf
