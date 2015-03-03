@@ -207,7 +207,28 @@ Type NormalizeFold
 	End Method
 	
 	Method FunDecl:Node(n:Rose)	'replace function declarations with simple assignment
-		Return Rose.Make("Assgt", [Rose.Make("VarList", [n.Get("name")]), Rose.Make("ExpList", [n.Get("body")])], ["vars", "vals"])
+		Local name:Node = n.Get("name"), body:Rose = Rose(n.Get("body"))
+		If name.key = "MethodName"
+			Local params:Rose = Rose(body.arg[0])
+			params = Rose.Make(params.key, [Leaf.Make("name", "self")] + params.arg)
+			body = Rose.Make(body.key, [Node(params), body.arg[1]], body.id)
+			name = Rose.Make("getfield", Rose(name).arg)
+		EndIf
+		Return Rose.Make("Assgt", [Rose.Make("VarList", [name]), Rose.Make("ExpList", [body])], ["vars", "vals"])
+	End Method
+	Method FuncName:Node(n:Rose)	'convert function name expressions to var+fields (but leave trailing method name to FunDecl)
+		Local r:Node = n.Get("n"), path:Rose = Rose(n.Get("path")), meth:Rose = Rose(n.Get("method"))
+		If path
+			For Local pe:Rose = EachIn path.arg
+				Local acc:Node = Leaf.Make("fname", Leaf(pe.arg[1]).val)
+				r = Rose.Make("getfield", [r, acc])
+			Next
+		EndIf
+		If meth
+			Local mname:Node = Leaf.Make("fname", Leaf(meth.arg[1]).val)
+			r = Rose.Make("MethodName", [r, mname])	'package for FunDecl to rebrand as a get
+		EndIf
+		Return r
 	End Method
 	Method LocalFun:Node(n:Rose)	'replace local function declarations with local assignment
 		Local nam:Node = n.Get("name"), dec:Node = Rose.Make("LocalVar", [..

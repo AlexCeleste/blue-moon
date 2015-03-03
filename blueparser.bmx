@@ -64,7 +64,7 @@ Type BlueParser Extends TMetaParser Final
 			ReturnS = "%return ExpList? %semicolon? : - @vals -"..
 	..
 		Label = "%dblcolon %!name %!dblcolon : - @name -"..
-		FuncName = "%name (%dot %!name)* (%colon %!name)?"..
+		FuncName = "%name (%dot %!name)* (%colon %!name)? : @n @path @method"..
 		VarList = "SubVarList* VarL : @ < ^"..
 			SubVarList = "VarL %comma : @ - ^"..
 			VarL = "PostfixExp | %name"..
