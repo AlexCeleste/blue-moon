@@ -32,7 +32,7 @@ End Rem
 'Const file:String = "tests/mandelbrot.lua"
 'Const file:String = "tests/sieve.lua"
 'Const file:String = "tests/attrib.lua"
-Const file:String = "test.lua"
+Const file:String = "test1.lua"
 
 Const outFile:String = "out.lua.so"
 
