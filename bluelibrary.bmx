@@ -20,10 +20,12 @@ Type BlueBasicLibrary
 	Function _Load(vm:BlueVM, _ENV:BlueLuaVal)
 		_ENV.Set("_G", _ENV)
 		_ENV.Set("getmetatable", vm.ValueFromFunction(getmetatable))
+		_ENV.Set("print", vm.ValueFromFunction(_print))
 		_ENV.Set("rawget", vm.ValueFromFunction(rawget))
 		_ENV.Set("rawset", vm.ValueFromFunction(rawset))
 		_ENV.Set("setmetatable", vm.ValueFromFunction(setmetatable))
-		_ENV.Set("_VERSION", vm.mem.AllocConstant(_VERSION.Length, Short Ptr(_VERSION))
+		Local vp:Short Ptr = _VERSION.ToWString(), vs:Byte Ptr = vm.mem.AllocConstant(_VERSION.Length, vp)
+		_ENV.Set("_VERSION", vm.ValueFromLua(vs, BlueTypeTag.STRBOX)) ; MemFree(vp)
 	End Function
 	
 	'assert
@@ -52,7 +54,13 @@ Type BlueBasicLibrary
 	'next
 	'pairs
 	'pcall
-	'print
+	Function _print:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+		For Local i:Int = 0 Until argc
+			Local val:Long = vm.mem.AnyToString(argv[i])	'this really shouldn't be in mem
+			Print vm.mem.ValToMaxString(val)
+		Next
+		Return 0
+	End Function
 	'rawequal
 	Function rawget:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
 		If argc < 2 Then vm.Error("not enough arguments to rawget: expecting table(1) and key(2)")

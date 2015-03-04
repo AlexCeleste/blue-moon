@@ -211,6 +211,7 @@ Type BlueVMMemory Final
 		bytecodes :+ [ret]
 		Return ret
 	End Method
+	
 	Method MaxStringToVal:Long(s:String)	'allocates as a constant; use sparingly
 		Local ch:Short Ptr = s.ToWString(), ret:Byte Ptr = AllocConstant(s.Length, ch), val:Long
 		MemFree(ch)
@@ -218,14 +219,45 @@ Type BlueVMMemory Final
 		Return val
 	End Method
 	Method ValToMaxString:String(val:Long)
-		'insert type check here (assume string for now)
-		Local obj:Byte Ptr = Byte Ptr(Int(val))
-		Local chars:Short[Int Ptr(obj)[0]]
+		Local tag:Int = Int Ptr(Varptr(val))[1]
+		If tag <> BlueTypeTag.STRBOX Then val = AnyToString(val)
+		Local obj:Byte Ptr = Byte Ptr(Int(val)), chars:Short[Int Ptr(obj)[0]]
 		For Local c:Int = 0 Until chars.Length
 			chars[c] = Short Ptr(obj + 8)[c]
 		Next
 		Return String.FromShorts(Short Ptr(chars), chars.Length)
 	End Method
+	Method AnyToString:Long(val:Long)	'this should be moved to the library, but ugh recursive dependency (FIXME)
+		Local tag:Int = Int Ptr(Varptr(val))[1], obj:Byte Ptr = Byte Ptr(Int(val)), s:String
+		Select tag
+			Case BlueTypeTag.STRBOX	'do nothing
+				Return val
+			Case BlueTypeTag.NILBOX
+				s = "nil"
+			Case BlueTypeTag.BOOLBOX
+				If Int(obj) Then s = "true" Else s = "false"
+			Case BlueTypeTag.FUNBOX, BlueTypeTag.NATFUNBOX
+				s = "function: 0x" + Hex(Int(obj))
+			Case BlueTypeTag.USRBOX
+				'if metatable has __tostring then ...
+				s = "userdata: 0x" + Hex(Int(obj))
+			Case BlueTypeTag.THRBOX
+				'if metatable has __tostring then ...
+				s = "coroutine: 0x" + Hex(Int(obj))
+			Case BlueTypeTag.TBLBOX
+				'if metatable has __tostring then ...
+				s = "table: 0x" + Hex(Int(obj))
+			Default	'number
+				Local d:Double = Double Ptr(Varptr(val))[0]
+				If d = Floor(d) Then s = String(Int(d)) Else s = String(d)
+		End Select
+		Local sp:Short Ptr = s.ToWString()
+		Byte Ptr Ptr(Varptr(val))[0] = AllocString(s.Length, sp)
+		MemFree(sp)
+		Int Ptr(Varptr(val))[1] = BlueTypeTag.STRBOX
+		Return val
+	End Method
+	
 	Method RootObj:BlueGCNode(o:Byte Ptr)
 		gcroots.nx = BlueGCNode.Insert(o, gcroots, gcroots.nx) ; Return gcroots.nx
 	End Method

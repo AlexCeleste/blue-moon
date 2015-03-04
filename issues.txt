@@ -2,7 +2,6 @@
 TODO (minimal, for preview):
 
 - metamethod lookup needs to be implemented
-  - setmetatable & getmetatable
 - operators and instructions need to be filled out
   - instructions need type checks
 - basic invocation framework with native exception handling

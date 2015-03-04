@@ -155,6 +155,13 @@ Type BlueVM
 		Return v
 	End Method
 	
+	Method ValueFromLua:BlueLuaVal(val:Byte Ptr, tag:Int)
+		Local ret:BlueLuaVal = BlueLuaVal.Make(Self)
+		Byte Ptr Ptr(Varptr(ret.val))[0] = val ; Int Ptr(Varptr(ret.val))[1] = tag
+		ret._obj = mem.RootObj(val)
+		Return ret
+	End Method
+	
 	Global BPtoBC:Bytecode(p:Byte Ptr) = Byte Ptr(BlueJIT.PointerToExtType)
 End Type
 
@@ -538,6 +545,7 @@ Type BlueJIT Final
 			(varp + rp[0])[r] = stk.retv[r]
 		'	Print "  return " + r + ": " + Double Ptr(stk.retv)[r]
 		Next
+		'nil the rest
 	End Function
 	Function VARARG(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
