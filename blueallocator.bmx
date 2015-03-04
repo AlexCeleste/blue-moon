@@ -84,6 +84,10 @@ Type BlueTypeTag Final
 	Const UPV:Int = 1 Shl 8, ARR:Int = 1 Shl 9, HASH:Int = 1 Shl 10, BCODE:Int = 1 Shl 11
 	
 	Const NANBOX:Int = Int(2^11 - 1) Shl 20, NANBOX_CHK:Int = NANBOX | (1 Shl 19)	'test against upper word (and that it's not a genuine NaN)
+	
+	Const NILBOX:Int = NANBOX | NIL, BOOLBOX:Int = NANBOX | BOOL, STRBOX:Int = NANBOX | STR
+	Const FUNBOX:Int = NANBOX | FUN, NATFUNBOX:Int = NANBOX | NATFUN, ANYFUNBOX:Int = NANBOX | FUN | NATFUN
+	Const USRBOX:Int = NANBOX | USR, THRBOX:Int = NANBOX | THR, TBLBOX:Int = NANBOX | TBL
 End Type
 
 Type BlueVMMemory Final
@@ -91,7 +95,7 @@ Type BlueVMMemory Final
 	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, STACKPROTECT:Int = 4096 * 3, BIGOBJECTSZ:Int = 500000
 	Const STACKFRAMESZ:Int = 8 * 4, BYTECODESZ:Int = 8 * 4
 	
-	Const NIL:Long = Long(BlueTypeTag.NANBOX | BlueTypeTag.NIL) * $100000000:Long	'WHY CAN'T I SHIFT LONGS ARGH
+	Const NIL:Long = Long(BlueTypeTag.NILBOX) * $100000000:Long	'WHY CAN'T I SHIFT LONGS ARGH
 		
 	Field gcroots:BlueGCNode, stack:Byte Ptr
 	Field newSpace:Byte Ptr, cpySpace:Byte Ptr, oldPtrSpace:Byte Ptr[], oldStrSpace:Byte Ptr[], bigSpace:Byte Ptr[]
