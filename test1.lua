@@ -41,6 +41,9 @@ local y = 0 ; while y ~= 8 do
 	y = y + t:f()
 end--]]
 --[ [
-local x = quux + 2	--assumes existence of test value _ENV.quux and _ENV.pr
+local x = quux + 2	--assumes existence of test value _ENV.quux and _ENV.pr (i.e. won't work in release)
 pr "hello from Lua!"
+local y = 3 + addtriple(12, 14, 19)	--test values _ENV.addtriple and _ENV.ret3
+local a, b, c = ret3()
+local z = a + b + c
 --]]

@@ -68,11 +68,24 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-Function lpr(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+Function lpr:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
 	Print vm.mem.ValToMaxString(argv[0])
+	Return 0
+End Function
+Function addtri:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+	Double Ptr(retv)[0] = Double Ptr(argv)[0] + Double Ptr(argv)[1] + Double Ptr(argv)[2]
+	Return 1
+End Function
+Function ret3:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+	Double Ptr(retv)[0] = 21
+	Double Ptr(retv)[1] = 23
+	Double Ptr(retv)[2] = 25
+	Return 3
 End Function
 vm._ENV.Set("pr", vm.ValueFromFunction(lpr))
 vm._ENV.Set("quux", vm.ValueFromNumber(7.5))
+vm._ENV.Set("addtriple", vm.ValueFromFunction(addtri))
+vm._ENV.Set("ret3", vm.ValueFromFunction(ret3))
 
 Print "running..."
 Local t:Int = MilliSecs()
@@ -377,6 +390,7 @@ Type BlueJIT Final
 		Print "GETTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
 		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[1])[0]
+		'type check
 		Print "  tag: " + Bin(Int Ptr(kp)[1])
 		Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
 		Print "  slot: " + Hex(Int(slot))
@@ -444,6 +458,7 @@ Type BlueJIT Final
 		Print "GETENV   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Print "  " + rp[0] + " " + Hex(Int Ptr(rp + 1)[0])
+		'need a type check
 		varp[rp[0]] = Long Ptr Ptr(rp + 1)[0][0]
 	End Function
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
@@ -646,10 +661,10 @@ Type BlueJIT Final
 			Byte Ptr Ptr(retptr)[-2] = Byte Ptr(newBC) + BYTECODE_INC
 			
 		ElseIf fp[1] = BlueTypeTag.NANBOX | BlueTypeTag.NATFUN	'native call
-			Local fun(vm:BlueVM, ac:Int, av:Long Ptr, rv:Long Ptr) = Byte Ptr(fp[0])
+			Local fun:Int(vm:BlueVM, ac:Int, av:Long Ptr, rv:Long Ptr) = Byte Ptr(fp[0])
 			Local argc:Int = Short Ptr(rp)[1], argv:Long Ptr = varp + rp[1], retv:Long Ptr = Long Ptr(Byte Ptr(stk) + stk.func.frameSz)
 			Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
-			fun(vm, argc, argv, retv)
+			stk.retc = fun(vm, argc, argv, retv)
 			stk.retv = retv
 		Else
 			Return False	'not a function; take appropriate action
