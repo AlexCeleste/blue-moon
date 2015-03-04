@@ -24,6 +24,9 @@ Type BlueBasicLibrary
 		_ENV.Set("rawget", vm.ValueFromFunction(rawget))
 		_ENV.Set("rawset", vm.ValueFromFunction(rawset))
 		_ENV.Set("setmetatable", vm.ValueFromFunction(setmetatable))
+		_ENV.Set("tonumber", vm.ValueFromFunction(tonumber))
+		_ENV.Set("tostring", vm.ValueFromFunction(_tostring))
+		_ENV.Set("type", vm.ValueFromFunction(_type))
 		Local vp:Short Ptr = _VERSION.ToWString(), vs:Byte Ptr = vm.mem.AllocConstant(_VERSION.Length, vp)
 		_ENV.Set("_VERSION", vm.ValueFromLua(vs, BlueTypeTag.STRBOX)) ; MemFree(vp)
 	End Function
@@ -99,9 +102,52 @@ Type BlueBasicLibrary
 		retv[0] = argv[0]	'manual doesn't say it's an error to not be a table
 		Return 1
 	End Function
-	'tonumber
-	'tostring
-	'type
+	Function tonumber:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+		If argc < 1 Then vm.Error("not enough arguments to tonumber: expecting object(1)")
+		If argc >= 2
+			vm.Error("haven't implemented multiple bases yet")
+		Else
+			Local tag:Int = Int Ptr(argv)[1], s:String
+			Select tag
+				Case BlueTypeTag.STRBOX
+					retv[0] = vm.mem.ValToMaxString(argv[0]).ToDouble()	'woeful!
+				Case BlueTypeTag.NILBOX, BlueTypeTag.BOOLBOX, BlueTypeTag.FUNBOX, BlueTypeTag.NATFUNBOX, ..
+				     BlueTypeTag.USRBOX, BlueTypeTag.THRBOX, BlueTypeTag.TBLBOX
+					retv[0] = vm.mem.NIL
+				Default
+					retv[0] = argv[0]
+			End Select
+		EndIf
+		Return 1
+	End Function
+	Function _tostring:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+		If argc < 1 Then vm.Error("not enough arguments to tostring: expecting object(1)")
+		'if meta has __tostring
+		'else
+		Local val:Long = vm.mem.AnyToString(argv[0])	'this really shouldn't be in mem
+		'endif
+		retv[0] = val
+		Return 1
+	End Function
+	Function _type:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
+		If argc < 1 Then vm.Error("not enough arguments to type: expecting object(1)")
+		Local tag:Int = Int Ptr(argv)[1], s:String
+		Select tag
+			Case BlueTypeTag.STRBOX ; s = "string"
+			Case BlueTypeTag.NILBOX ; s = "nil"
+			Case BlueTypeTag.BOOLBOX ; s = "boolean"
+			Case BlueTypeTag.FUNBOX, BlueTypeTag.NATFUNBOX ; s = "function"
+			Case BlueTypeTag.USRBOX ; s = "userdata"
+			Case BlueTypeTag.THRBOX ; s = "thread"
+			Case BlueTypeTag.TBLBOX ; s = "table"
+			Default	 ; s = "number"
+		End Select
+		Local sp:Short Ptr = s.ToWString()
+		Byte Ptr Ptr(retv)[0] = vm.mem.AllocString(s.Length, sp)
+		MemFree(sp)
+		Int Ptr(retv)[1] = BlueTypeTag.STRBOX
+		Return 1
+	End Function
 	Const _VERSION:String = "Lua 5.3 (incomplete)"
 	'xpcall
 End Type

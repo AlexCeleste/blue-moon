@@ -5,7 +5,6 @@ TODO (minimal, for preview):
 - operators and instructions need to be filled out
   - instructions need type checks
 - basic invocation framework with native exception handling
-- basic library needs to be written
 - eden gc needs to be implemented
 
 
