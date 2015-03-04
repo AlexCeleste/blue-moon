@@ -259,7 +259,7 @@ Type CompileFold
 	
 	Method TableCons:Node(n:Rose)
 		Local r:BytecodeNode = BytecodeNode.Join(n.key, n.arg), fld:BytecodeNode = Null
-		Local rslot:Int = f.Push(), tslot:Int = f.vars '+ f.upvars
+		Local rslot:Int = f.Push(), tslot:Int = -1
 		For fld = EachIn n.arg	'work out where it's safe to put the table
 			For Local in:BlueInstr = EachIn fld.inst
 				If in.ra >= tslot Then tslot = in.ra + 1
