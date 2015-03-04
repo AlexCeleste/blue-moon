@@ -52,4 +52,8 @@ print "hello from Lua!"	--real library print
 print("foo", "bar")
 print(6, print)
 print {1}
+local x = { a = 12 }
+print(rawget(x, 'a'))
+rawset(x, 'b', 17)
+print(x.b)
 --]]
