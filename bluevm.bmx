@@ -1,113 +1,35 @@
 
 ' Blue Moon
-' an implementation of Lua in pure BlitzMax
+' Virtual Machine
+' the VM allocates memory, manages bytecode and machine code, and interfaces between Max and Lua objects
+' alongside the compiler, this more or less forms the toplevel accessible to the user
+
+' due to recursive dependency problems, for the moment a lot of this is Include rather than Import based
+' we'll fix that in post
+
 
 SuperStrict
-
-'Framework Brl.Blitz
-'Import Brl.LinkedList
-'Import Brl.Map
-'Import Brl.Reflection
 
 Import "bluecompiler.bmx"
 Import "blueallocator.bmx"
 Import "bluetable.bmx"
+
 Rem
-Import "blueasm.o"
+Import "blueasm.o"	'future project: assembly operators (this is a note, not an implementation)
 Extern
 Function ADD:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "ADD2"
 Function EQ:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "EQ2"
-Function GETUPV:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "GETUPV2"
-Function JIF:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "JIF2"
-Function LOADBOOL:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADBOOL2"
-Function LOADK:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADK2"
-Function LOADNIL:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADNIL2"
-Function LOADSI:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "LOADSI2"
-Function MOV:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "MOV2"
-Function NEWUPV:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "NEWUPV2"
-Function SETLC:Int(s:Stack, b:Bytecode, r:Byte Ptr) = "SETLC2"
+'... you get the idea
 End Extern
-End Rem
-'Const file:String = "tests/checktable.lua"
-'Const file:String = "tests/mandelbrot.lua"
-'Const file:String = "tests/sieve.lua"
-'Const file:String = "tests/attrib.lua"
-Const file:String = "test1.lua"
-
-Const outFile:String = "out.lua.so"
-
-
-Print BlueCompiler.ShowBytecode(file)
-
-Rem
 BlueJIT.InitOpTbl()
 'BlueJIT.opTbl[BlueJIT.opc.ADD] = ADD
 'BlueJIT.opTbl[BlueJIT.opc.EQ] = EQ
-'BlueJIT.opTbl[BlueJIT.opc.GETUPV] = GETUPV
-'BlueJIT.opTbl[BlueJIT.opc.JIF] = JIF
-'BlueJIT.opTbl[BlueJIT.opc.LOADBOOL] = LOADBOOL
-'BlueJIT.opTbl[BlueJIT.opc.LOADK] = LOADK
-'BlueJIT.opTbl[BlueJIT.opc.LOADNIL] = LOADNIL
-'BlueJIT.opTbl[BlueJIT.opc.LOADSI] = LOADSI
-BlueJIT.opTbl[BlueJIT.opc.MOV] = MOV
-'BlueJIT.opTbl[BlueJIT.opc.NEWUPV] = NEWUPV
-'BlueJIT.opTbl[BlueJIT.opc.SETLC] = SETLC
 End Rem
 
-Local code:BlueBinary = BlueCompiler.CompileFileForLoad(file)
-Local vm:BlueVM = New BlueVM
-Local tl:BlueLuaVal = vm.LoadObjectCode(code)
+Include "bluelibrary.bmx"
 
-Local stk:Stack = BlueJIT.BPtoS(vm.mem.stack)
-stk.retIP = Null ; stk.prevBase = Null
-Local vc:Int = 10, upvars:Int = 1
-stk.varp = Long Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
-stk.func = vm.funIndex[0]
-stk.argv = Null	'may want to add space?
-stk.retv = Null
-stk.argc = 0
-stk.retc = 0
-
-Function lpr:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
-	Print vm.mem.ValToMaxString(argv[0])
-	Return 0
-End Function
-Function addtri:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
-	Double Ptr(retv)[0] = Double Ptr(argv)[0] + Double Ptr(argv)[1] + Double Ptr(argv)[2]
-	Return 1
-End Function
-Function ret3:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
-	Double Ptr(retv)[0] = 21
-	Double Ptr(retv)[1] = 23
-	Double Ptr(retv)[2] = 25
-	Return 3
-End Function
-vm._ENV.Set("pr", vm.ValueFromFunction(lpr))
-vm._ENV.Set("quux", vm.ValueFromNumber(7.5))
-vm._ENV.Set("addtriple", vm.ValueFromFunction(addtri))
-vm._ENV.Set("ret3", vm.ValueFromFunction(ret3))
-
-Print "running..."
-Local t:Int = MilliSecs()
-Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
-t = MilliSecs() - t
-Print t
-Print "run complete"
-
-Rem
-Local tbl:BlueLuaVal = vm.NewTable(), n:BlueLuaVal = vm.ValueFromNumber(6.5)
-tbl.Set("foo", n) ; tbl.Set("bar", vm.ValueFromNumber(7.5)) ; tbl.Set("baz", vm.ValueFromNumber(9.7:Double))
-Local res:BlueLuaVal = tbl.Get("foo")
-Print Double Ptr(Varptr(res.val))[0]
-res = tbl.Get("bar") ; Print Double Ptr(Varptr(res.val))[0]
-res = tbl.Get("baz") ; Print Double Ptr(Varptr(res.val))[0]
-End Rem
-
-Print "done."
-End
 
 ' notes:
-' - string constants and bytecode are loaded directly into oldSpc, since they'll be needed often
 ' - the structure of a bytecode object is:
 '    [ machine code ptr ][ id-offset ][ #k ][ #param ][ #upvar ][ frame sz ][ #instrs ][ vm ][ instructions... ][ upvar table... ][ k table... ]
 '   initial fields are all 32b; instructions are each 64b; upvar table is pairs of 32b values (level, pos); k table is NaN-box values
@@ -230,7 +152,7 @@ Type BlueVM
 	Global BPtoBC:Bytecode(p:Byte Ptr) = Byte Ptr(BlueJIT.PointerToExtType)
 End Type
 
-Private
+'Private	'may need to open these (in the shared interface?)
 Extern
 	Type Stack
 		Field retIP:Byte Ptr, prevBase:Stack, varp:Long Ptr, func:Bytecode, _:Long Ptr, argv:Long Ptr, retv:Long Ptr, argc:Short, retc:Short
@@ -239,7 +161,7 @@ Extern
 		Field mcode:Byte Ptr, idMod:Int, kcount:Int, pcount:Int, upvars:Int, frameSz:Int, icount:Int, vm:Byte Ptr
 	End Type
 End Extern
-Public
+'Public
 
 Type BlueJIT Final
 	Const PROLOGUESZ:Int = 25, ISIZE:Int = 5
@@ -746,131 +668,3 @@ Type BlueLuaVal
 	End Method
 End Type
 
-
-Rem
-Local files:TList = CreateList()
-Local as:String, ld:String, showHelp:Int, output:String = "a.out", doAssemble:Int = 1
-Local keepAsm:Int, makeExe:Int = 1, asOpts:String, ldOpts:String, showAST:Int, showVersion:Int
-
-?MacOS
-as = "clang -m32 -c " ; ld = "clang -Wl,-no_pie -m32 -read_only_relocs suppress "
-?Not MacOS
-as = "gcc -m32 -c " ; ld = "gcc -m32 "
-?
-
-For Local a:Int = 1 Until AppArgs.Length
-	Select AppArgs[a]
-		Case "-?", "--help"
-			showHelp = 1
-		Case "-v"
-			showVersion = 1
-		Case "-o"
-			If makeExe = 0
-				Print "warning: -c and -o are mutually exclusive; -c is overruling -o"
-			Else
-				a :+ 1 ; output = AppArgs[a] ; makeExe = 2
-			EndIf
-		Case "-c"
-			If makeExe = 2
-				Print "warning: -o and -c are mutually exclusive; -o is overruling -c"
-			Else
-				doAssemble = 1 ; makeExe = 0
-			EndIf
-		Case "-s"
-			keepAsm = 1
-		Case "-S"
-			keepAsm = 1 ; doAssemble = 0 ; makeExe = 0
-		Case "--as"
-			a :+ 1 ; as = AppArgs[a] + " "
-		Case "--ld"
-			a :+ 1 ; ld = AppArgs[a] + " "
-		Case "--as-opt"
-			a :+ 1 ; asOpts :+ AppArgs[a] + " "
-		Case "--ld-opt"
-			a :+ 1 ; ldOpts :+ AppArgs[a] + " "
-		Case "--tree"
-			showAST = 1 ; makeExe = 0
-		Case "-w"     ; YBCodeGen.SetWarningLevel 0
-		Case "--werr" ; YBCodeGen.SetWarningLevel 2
-		Case "--warn" ; YBCodeGen.SetWarningLevel 1
-		Default
-			files.AddLast AppArgs[a]
-	End Select
-Next
-If AppArgs.Length = 1 Then Print "ybc: no input files" ; End
-
-If showVersion Then DisplayVersion
-If showHelp Then DisplayHelp
-
-?Win32
-Local rm:String = "del /Q "
-?Not Win32
-Local rm:String = "rm "
-?
-
-Local allOFiles:String = ""
-For Local file:String = EachIn files
-	Try
-		Local tree:TParseNode = YBParseFile(file)
-		If showAST
-			Print tree.ToString()
-		Else
-			YBCodeGen.Build tree
-			YBAssembler.Emit file + ".s", YBCodeGen.syms, YBCodeGen.funs, YBCodeGen.vars, YBCodeGen.strs
-			If doAssemble
-				system_(as + asOpts + file + ".s -o " + file + ".o")
-				allOFiles :+ file + ".o "
-			EndIf
-			If Not keepAsm
-				system_ rm + file + ".s"
-			EndIf
-		EndIf
-	Catch e:Object
-		Print "Compile error:~n    " + e.ToString()
-		Print "Compilation halted."
-		?Debug
-		Throw e
-		?
-		End
-	End Try
-Next
-
-?Linux
-Local bLib:String = "b-lib-linux"
-?Not Linux
-Local bLib:String = "b-lib"
-?
-If makeExe
-	If Not FileType("b-lib.o") Then system_ as + bLib + ".s -o b-lib.o"
-	system_(ld + ldOpts + "-o " + output + " " + allOFiles + " b-lib.o")
-	system_(rm + allOFiles)
-EndIf
-
-Print "done."
-End
-End Rem
-Rem
-Function DisplayVersion()
-	Print "Shadow SIMD Compiler: version 0.0"
-End Function
-
-Function DisplayHelp()
-	Print "OVERVIEW: ybc compiler for B~n"
-	Print "USAGE: ybc [options] <files>~n"
-	Print "OPTIONS:~n"
-	Print "  -?, --help  Display this message"
-	Print "  -v          Show the compiler version"
-	Print "  -o          Set the name of the output executable (default 'a.out')"
-	Print "  -c          Produce separate .o files instead of an executable"
-	Print "  -s          Keep text assembly .s files"
-	Print "  -S          Only produce text assembly, do not assemble binaries"
-	Print "  --as        Set the command to use as the assembler"
-	Print "  --ld        Set the command to use as the linker"
-	Print "  --as-opt    Add an option to pass to the assembler (can repeat)"
-	Print "  --ld-opt    Add an option to pass to the linker (can repeat)"
-	Print "  --tree      Display the AST of the program source instead of compiling"
-	Print "  -w          Silence warnings"
-	Print "  --werr      Convert warnings to errors"
-	Print "  --warn      Notify but do not halt on warnings (default)"
-End Function
-End Rem

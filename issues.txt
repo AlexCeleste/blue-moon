@@ -12,6 +12,8 @@ TODO (minimal, for preview):
 
 TODO ("working", to call it implemented):
 
+- clean up VM's include-based module structure (reflective instantiator?)
+  - split the JIT and operator modules
 - code buffer allocation needs to be completed
 - generational gc needs to be implemented
   - allocator needs to be tidied up
