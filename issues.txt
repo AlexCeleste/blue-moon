@@ -25,13 +25,15 @@ TODO ("working", to call it implemented):
 - standard library needs to be written
 - coroutines need to be designed and implemented
 - need to fix (completely rewrite) the MOV-optimizer
+- pass the official test suite
 
 
 WISHLIST (will do after release 0.1):
 
-- bitwise operators from 5.3
+- bitwise operators from 5.3, posate
 
 - general code cleanup (esp. in JIT)
+- convert opc. to true constants
 - replace conv() calls with something faster
 
 - remove table init size limit (by flattening stack)

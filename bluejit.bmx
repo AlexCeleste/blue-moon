@@ -149,7 +149,7 @@ Type BlueJIT Final
 	'	Print "SETLC    //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
-		vm.mem.Write(Long Ptr Ptr(varp + rp[0])[0][0], varp[rp[1]])	'unlikely but technically possible to need this
+		vm.mem.Write(Long Ptr Ptr(varp + rp[0])[0], varp[rp[1]])	'unlikely but technically possible to need this
 	End Function
 	Function LOADK(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "LOADK    //"

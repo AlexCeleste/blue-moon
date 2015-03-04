@@ -99,6 +99,8 @@ Type BlueOpcode Final
 	Field CALL:Int = 42, TCALL:Int = 43, RET:Int = 44, RETVA:Int = 45
 	Field POSTCALL:Int = 46, VARARG:Int = 47, VAINIT:Int = 48, CALLINIT:Int = 49
 	
+	Const NUM_OPCODES:Int = 50
+	
 	Function Make:Int(i:BlueInstr)
 		Global opc:BlueOpcode = New Self
 		Local c:Int = i.c

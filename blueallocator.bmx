@@ -206,6 +206,10 @@ Type BlueVMMemory Final
 		kstrings :+ [ret]
 		Return ret + 8
 	End Method
+	Method AllocConstStr:Byte Ptr(s:String)	'convenience wrapper
+		Local ch:Short Ptr = s.ToWString(), ret:Byte Ptr = AllocConstant(s.Length, ch), val:Long
+		MemFree(ch) ; Return ret
+	End Method
 	Method AllocBytecode:Byte Ptr(upvars:Int, kcount:Int, icount:Int)
 		Local ret:Byte Ptr = MemAlloc(4 * BYTECODESZ + 8 * kcount + 8 * icount + 8 * upvars)	'not here to do malloc's job for it
 		bytecodes :+ [ret]
@@ -213,8 +217,7 @@ Type BlueVMMemory Final
 	End Method
 	
 	Method MaxStringToVal:Long(s:String)	'allocates as a constant; use sparingly
-		Local ch:Short Ptr = s.ToWString(), ret:Byte Ptr = AllocConstant(s.Length, ch), val:Long
-		MemFree(ch)
+		Local ret:Byte Ptr = AllocConstStr(s), val:Long
 		Int Ptr(Varptr(val))[0] = Int(ret) ; Int Ptr(Varptr(val))[1] = BlueTypeTag.NANBOX | BlueTypeTag.STR
 		Return val
 	End Method

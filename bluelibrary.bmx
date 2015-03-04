@@ -27,8 +27,8 @@ Type BlueBasicLibrary
 		_ENV.Set("tonumber", vm.ValueFromFunction(tonumber))
 		_ENV.Set("tostring", vm.ValueFromFunction(_tostring))
 		_ENV.Set("type", vm.ValueFromFunction(_type))
-		Local vp:Short Ptr = _VERSION.ToWString(), vs:Byte Ptr = vm.mem.AllocConstant(_VERSION.Length, vp)
-		_ENV.Set("_VERSION", vm.ValueFromLua(vs, BlueTypeTag.STRBOX)) ; MemFree(vp)
+		Local vs:Byte Ptr = vm.mem.AllocConstStr(_VERSION)
+		_ENV.Set("_VERSION", vm.ValueFromLua(vs, BlueTypeTag.STRBOX))
 	End Function
 	
 	'assert

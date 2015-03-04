@@ -56,4 +56,5 @@ local x = { a = 12 }
 print(rawget(x, 'a'))
 rawset(x, 'b', 17)
 print(x.b)
+print(_VERSION)
 --]]
