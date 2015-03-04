@@ -45,6 +45,8 @@ Type BlueVM
 	Method New()
 		mem = New BlueVMMemory ; strs = CreateMap()
 		_ENV = NewTable()	'rebuild on each run?
+		BlueBasicLibrary._Load(Self, _ENV)
+	'	_ENV._vm = Null	'circular dependency (this does mean manipulating _ENV from outside could be problematic; we should probably have property accessors)
 	End Method
 	
 	' Load the procedures and constants of a compiled binary into the VM, returning the function representing the program toplevel
@@ -122,6 +124,10 @@ Type BlueVM
 	End Method
 	
 	Method CallToLua()
+	End Method
+	
+	Method Error(msg:String)
+		Throw "[temporary error framework]: " + msg
 	End Method
 	
 	Method NewTable:BlueLuaVal()
