@@ -133,7 +133,7 @@ Type BlueTable Final
 				If Int Ptr(arraypart)[i * 2 + 1] <> NILTAG Then tsize :+ 1
 			Next
 		EndIf
-		tsize = Ceil(Log(tsize + 1) / Log(2))	'go from count to power
+		tsize = Ceil(Log(tsize) / Log(2)) + 1	'go from count to power
 		
 		Local newarray:Byte Ptr = Null, newtable:Byte Ptr = Null	'allocate and copy
 		Local oldasize:Int = 0 ; If arraypart Then oldasize = Int Ptr(arraypart)[-1]
@@ -142,7 +142,7 @@ Type BlueTable Final
 		If asize <> oldasize
 			newarray = mem.AllocObject(asize * 8 + 8, BlueTypeTag.ARR) + 8
 			For Local i:Int = 0 Until asize
-				Int Ptr(newarray)[i * 2 + 1] = NILTAG
+				Long Ptr(newarray)[i] = BlueVMMemory.NIL
 			Next
 			Int Ptr(newarray)[-1] = asize ; Byte Ptr Ptr(tbl)[3] = newarray
 		ElseIf asize = 0
@@ -153,7 +153,7 @@ Type BlueTable Final
 		If tsize <> oldtsize
 			newtable = mem.AllocObject(2 ^ tsize * 16 + 8, BlueTypeTag.HASH)
 			For Local i:Int = 0 Until 2 ^ tsize * 2
-				Int Ptr(newtable)[i * 2 + 1] = NILTAG
+				Long Ptr(newtable)[i] = BlueVMMemory.NIL
 			Next
 			Int Ptr(newtable)[-1] = tsize ; Int Ptr(newtable)[-2] = 0
 			Byte Ptr Ptr(tbl)[2] = newtable
