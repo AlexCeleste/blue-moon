@@ -178,16 +178,15 @@ Type BlueJIT Final
 		Print "GETTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
 		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[1])[0]
-		'type check
-		Print "  tag: " + Bin(Int Ptr(kp)[1])
-		Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
-		Print "  slot: " + Hex(Int(slot))
-		If (slot = Null) Or (keyslot[0] <> kp[0])	'not in table; invoke metamethod
-			'if keyslot == 1 then it's invalid
-			DebugStop
-		Else
-			varp[rp[0]] = slot[0]
+		If Int Ptr(varp + rp[1])[1] = BlueTypeTag.TBLBOX
+			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
+			If (slot = Null) Or (keyslot[0] <> kp[0])	'not in table; invoke metamethod
+				If keyslot = Long Ptr(1) Then varp[rp[0]] = BlueVMMemory.NIL ; Return	'nil key
+			Else
+				varp[rp[0]] = slot[0] ; Return
+			EndIf
 		EndIf
+		Metamethod opc.GETTAB, bc, retptr, varp + rp[0], varp + rp[1], varp + rp[2]
 	End Function
 	Function GETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
@@ -457,6 +456,12 @@ Type BlueJIT Final
 			Return False	'not a function; take appropriate action
 		EndIf
 		Return True	'all good and will auto-call when the caller returns
+	End Function
+	
+	Function Metamethod(op:Int, bc:Bytecode, retptr:Byte Ptr, d:Long Ptr, r:Long Ptr, l:Long Ptr)	'prep but not execute a call
+		'need to work out a way to return values from this without POSTCALL (maybe can co-opt RET to handle singles by itself)
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		vm.Error("metamethod access isn't implemented yet")
 	End Function
 	
 	Function InitOpTbl()

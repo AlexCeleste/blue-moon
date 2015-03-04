@@ -41,13 +41,40 @@ Include "bluejit.bmx"
 Type BlueVM
 	Field mem:BlueVMMemory, _ENV:BlueLuaVal
 	Field idMod:Int, funIndex:Bytecode Ptr, _fiSz:Int
-	Field strs:TMap
+	Field strs:TMap, metaname:Byte Ptr[]
 	
 	Method New()
 		mem = New BlueVMMemory ; strs = CreateMap()
 		_ENV = NewTable()	'rebuild on each run?
 		BlueBasicLibrary._Load(Self, _ENV)
 	'	_ENV._vm = Null	'circular dependency (this does mean manipulating _ENV from outside could be problematic; we should probably have property accessors)
+		
+		Local opc:BlueOpcode = New BlueOpcode
+		Local m:Byte Ptr[] = New Byte Ptr[opc.NUM_OPCODES]	'this table is used to ease metamethod access (centralize it)
+		m[opc.GETTAB] = mem.AllocConstStr("__index") ; m[opc.GETTABSI] = m[opc.GETTAB] ; m[opc.GETTABI] = m[opc.GETTAB]
+		m[opc.SETTAB] = mem.AllocConstStr("__newindex") ; m[opc.SETTABSI] = m[opc.SETTAB] ; m[opc.SETTABI] = m[opc.SETTAB]
+		m[opc.ADD]  = mem.AllocConstStr("__add")
+		m[opc.SUB]  = mem.AllocConstStr("__sub")
+		m[opc.MUL]  = mem.AllocConstStr("__mul")
+		m[opc.DIV]  = mem.AllocConstStr("__div")
+		m[opc.NMOD] = mem.AllocConstStr("__mod")
+		m[opc.POW]  = mem.AllocConstStr("__pow")
+		m[opc.CAT]  = mem.AllocConstStr("__concat")
+		m[opc.IDIV] = mem.AllocConstStr("__idiv")
+		m[opc.BAND] = mem.AllocConstStr("__band")
+		m[opc.BOR]  = mem.AllocConstStr("__bor")
+		m[opc.BXOR] = mem.AllocConstStr("__bxor")
+		m[opc.BSHL] = mem.AllocConstStr("__shl")
+		m[opc.BSHR] = mem.AllocConstStr("__shr")
+		m[opc.UNM]  = mem.AllocConstStr("__unm")
+		m[opc.ALEN] = mem.AllocConstStr("__len")
+		m[opc.BNOT] = mem.AllocConstStr("__bnot")
+		m[opc.UNP]  = mem.AllocConstStr("__unp")	'damn right it's supported
+		m[opc.EQ]   = mem.AllocConstStr("__eq")
+		m[opc.LT]   = mem.AllocConstStr("__lt")
+		m[opc.LEQ]  = mem.AllocConstStr("__le")
+		m[opc.CALL] = mem.AllocConstStr("__call")
+		metaname = m
 	End Method
 	
 	' Load the procedures and constants of a compiled binary into the VM, returning the function representing the program toplevel
