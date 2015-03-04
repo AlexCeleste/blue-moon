@@ -73,12 +73,11 @@ Type BlueTable Final
 	' put a value into a table, resizing it if necessary
 	Function RawSet(mem:BlueVMMemory, tbl:Byte Ptr, key:Long, val:Long)
 		Local keyp:Long Ptr = Null, valp:Long Ptr = GetSlot(tbl, key, Varptr(keyp))
-		Const NILTAG:Int = BlueTypeTag.NANBOX | BlueTypeTag.NIL
 		If valp
 			mem.Write(valp, val)
 			If keyp
 				Local hashpart:Int Ptr = Int Ptr Ptr(tbl)[2]
-				If Int Ptr(valp)[1] <> NILTAG
+				If Int Ptr(valp)[1] <> BlueTypeTag.NILBOX
 					If keyp[0] <> key Then mem.Write(keyp, key) ; hashpart[-2] :+ 1
 				Else	'nil value = remove element
 					mem.Write(keyp, val) ; hashpart[-2] :- 1
@@ -122,15 +121,19 @@ Type BlueTable Final
 		Else
 			tsize :+ 1
 		EndIf
+		Local addtotsize:Int = 0
 		For Local i:Int = 0 Until 32	'tally up
+			addtotsize :+ numcount[i]
 			If i Then numcount[i] :+ numcount[i - 1]
-			If numcount[i] > 2 ^ i / 2 Then asize = 2 ^ i
+			If numcount[i] > 2 ^ i / 2 Then asize = 2 ^ i ; addtotsize = 0
 		Next
+		tsize :+ addtotsize
 		If arraypart <> Null	'complete new table size with any discarded array elements
 			For Local i:Int = asize Until Int Ptr(arraypart)[-1]
 				If Int Ptr(arraypart)[i * 2 + 1] <> NILTAG Then tsize :+ 1
 			Next
 		EndIf
+		tsize = Ceil(Log(tsize + 1) / Log(2))	'go from count to power
 		
 		Local newarray:Byte Ptr = Null, newtable:Byte Ptr = Null	'allocate and copy
 		Local oldasize:Int = 0 ; If arraypart Then oldasize = Int Ptr(arraypart)[-1]
