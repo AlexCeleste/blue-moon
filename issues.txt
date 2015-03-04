@@ -1,7 +1,7 @@
 
 TODO (minimal, for preview):
 
-- metamethod lookup needs to be implemented
+- framework for metamethod lookup (i.e. defer to lookup on overload)
 - operators and instructions need to be filled out
   - instructions need type checks
 - basic invocation framework with native exception handling
@@ -11,6 +11,7 @@ TODO (minimal, for preview):
 
 TODO ("working", to call it implemented):
 
+- metamethod lookup needs to be implemented
 - clean up VM's include-based module structure (reflective instantiator?)
   - split the JIT and operator modules
 - code buffer allocation needs to be completed
