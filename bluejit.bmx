@@ -141,15 +141,15 @@ Type BlueJIT Final
 	Function MOV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "MOV      //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		varp[rp[0]] = varp[rp[1]]	'assigning through Double is unsafe as it can corrupt the bit pattern
+		varp[rp[0]] = varp[rp[1]]
 	End Function
 	Function GETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function SETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "SETLC    //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		'add a write barrier here
-		Long Ptr Ptr(varp + rp[0])[0][0] = varp[rp[1]]
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		vm.mem.Write(Long Ptr Ptr(varp + rp[0])[0][0], varp[rp[1]])	'unlikely but technically possible to need this
 	End Function
 	Function LOADK(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "LOADK    //"
@@ -221,8 +221,6 @@ Type BlueJIT Final
 		Local tabp:Byte Ptr = varp + rp[1]
 		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
 		Local val:Long = BlueTable.RawGet(Byte Ptr Ptr(tabp)[0], varp[rp[2]])
-		Local v:Double = Double Ptr(Varptr(val))[0]
-		Print "  " + v
 		varp[rp[0]] = val
 	End Function
 	Function SETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
