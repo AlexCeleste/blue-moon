@@ -90,6 +90,8 @@ Type BlueVMMemory Final
 	Const PAGESZ:Int = 1048576, PAGEBITMAPSZ:Int = 16384, PAGEMETASZ:Int = 256
 	Const EDENSIZE:Int = 8 * PAGESZ, STACKSZ:Int = 8 * PAGESZ, STACKPROTECT:Int = 4096 * 3, BIGOBJECTSZ:Int = 500000
 	Const STACKFRAMESZ:Int = 8 * 4, BYTECODESZ:Int = 8 * 4
+	
+	Const NIL:Long = Long(BlueTypeTag.NANBOX | BlueTypeTag.NIL) * $100000000:Long	'WHY CAN'T I SHIFT LONGS ARGH
 		
 	Field gcroots:BlueGCNode, stack:Byte Ptr
 	Field newSpace:Byte Ptr, cpySpace:Byte Ptr, oldPtrSpace:Byte Ptr[], oldStrSpace:Byte Ptr[], bigSpace:Byte Ptr[]
