@@ -37,25 +37,6 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-Function lpr:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
-	Print vm.mem.ValToMaxString(argv[0])
-	Return 0
-End Function
-Function addtri:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
-	Double Ptr(retv)[0] = Double Ptr(argv)[0] + Double Ptr(argv)[1] + Double Ptr(argv)[2]
-	Return 1
-End Function
-Function ret3:Int(vm:BlueVM, argc:Int, argv:Long Ptr, retv:Long Ptr)
-	Double Ptr(retv)[0] = 21
-	Double Ptr(retv)[1] = 23
-	Double Ptr(retv)[2] = 25
-	Return 3
-End Function
-vm._ENV.Set("pr", vm.ValueFromFunction(lpr))
-vm._ENV.Set("quux", vm.ValueFromNumber(7.5))
-vm._ENV.Set("addtriple", vm.ValueFromFunction(addtri))
-vm._ENV.Set("ret3", vm.ValueFromFunction(ret3))
-
 Print "running..."
 Local t:Int = MilliSecs()
 Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
