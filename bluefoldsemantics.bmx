@@ -190,7 +190,7 @@ Type FunDef
 	End Function
 	Function Toplevel:FunDef(root:Node, in:SemanticFold)	'create a chunk toplevel as a function whose sole parameter is _ENV
 		Local f:FunDef = FunDef.Make(root, in), env:VarDef = VarDef.Make("_ENV", Null, 0, 0, -1)
-		f._ct.AddLast env ; Return f
+		env.isClosure = True ; f._ct.AddLast env ; Return f
 	End Function
 	Method AddVar:VarDef(n:Leaf, in:SemanticFold)
 		Local blk:Node = Node(_ev.First()), v:VarDef
