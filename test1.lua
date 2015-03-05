@@ -1,19 +1,19 @@
 -- extremely basic execution tests
+-- uncomment individual test blocks with a space to run examples
 
 --[[
-local x = 0
---local y = 600000
-while x ~= 10000000 do
+local x = 0	-- loop test
+while x ~= 10 do --10000000 do
 	x = x + 1
 end--]]
 --[[
-local function f(x) return x + 1 end
+local function f(x) return x + 1 end	-- function call test
 local x = 0
-while x ~= 10000000 do
+while x ~= 10 do --10000000 do
 	x = f(x)
 end--]]
 --[[
-local y = 2
+local y = 2	-- closure test
 local x = 0
 local function f(x) return x + y end
 while x ~= 8 do--10000000 do
