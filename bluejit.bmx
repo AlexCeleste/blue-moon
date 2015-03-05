@@ -144,6 +144,9 @@ Type BlueJIT Final
 		varp[rp[0]] = varp[rp[1]]
 	End Function
 	Function GETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "GETLC    //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		varp[rp[0]] = Long Ptr Ptr(varp + rp[1])[0][0]
 	End Function
 	Function SETLC(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "SETLC    //"
@@ -175,86 +178,95 @@ Type BlueJIT Final
 	End Function
 	
 	Function GETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "GETTAB   //"
+	'	Print "GETTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
 		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[1])[0]
 		If Int Ptr(varp + rp[1])[1] = BlueTypeTag.TBLBOX
 			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
-			If (slot = Null) Or (keyslot[0] <> kp[0])	'not in table; invoke metamethod
+			If (slot = Null) Or (keyslot[0] <> kp[0])
 				If keyslot = Long Ptr(1) Then varp[rp[0]] = BlueVMMemory.NIL ; Return	'nil key
 			Else
 				varp[rp[0]] = slot[0] ; Return
 			EndIf
 		EndIf
-		Metamethod opc.GETTAB, bc, retptr, varp + rp[0], varp + rp[1], varp + rp[2]
+		IndexMetamethod bc, retptr, varp + rp[0], varp[rp[1]], kp[0]	'not in table; invoke metamethod
 	End Function
 	Function GETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "GETTABSI //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[1])[0], key:Long ; Double Ptr(Varptr(key))[0] = Short Ptr(rp)[1]
+		If Int Ptr(varp + rp[0])[1] = BlueTypeTag.TBLBOX
+			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, key, Varptr(keyslot))
+			If Not (slot = Null Or (keyslot And keyslot[0] <> key)) Then varp[rp[0]] = slot[0] ; Return
+			If keyslot = Long Ptr(1) Then varp[rp[0]] = BlueVMMemory.NIL ; Return
+		EndIf
+		IndexMetamethod bc, retptr, varp + rp[0], varp[rp[1]], key
 	End Function
 	Function SETTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "SETTAB   //"
-		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
-		Local tabp:Byte Ptr = Byte Ptr Ptr(varp + rp[0])[0]
-		Print "  tag: " + Bin(Int Ptr(kp)[1])
-		Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(tabp, kp[0], Varptr(keyslot))
-		Print "  slot: " + Hex(Int(slot))
-		If (slot = Null) Or (keyslot[0] <> kp[0])	'not in table; invoke metamethod or rawset
-			'if keyslot == 1 then it's invalid
-			Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
-			BlueTable.RawSet(vm.mem, tabp, kp[0], varp[rp[1]])
-		Else
-			slot[0] = varp[rp[1]]
+	'	Print "SETTAB   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local tabvp:Byte Ptr = varp + rp[0], kp:Long Ptr = Long Ptr Ptr(rp + 2)[0]
+		If Int Ptr(tabvp)[1] = BlueTypeTag.TBLBOX
+			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(Byte Ptr Ptr(tabvp)[0], kp[0], Varptr(keyslot))
+			If Not (slot = Null Or keyslot[0] <> kp[0]) Then slot[0] = varp[rp[1]] ; Return
 		EndIf
+		NewindexMetamethod bc, retptr, varp[rp[0]], varp[rp[1]], kp[0]	'not in table; invoke metamethod or rawset
 	End Function
 	Function SETTABSI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "SETTABSI //"
-		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
-		Local tabp:Byte Ptr = varp + rp[0]
-		Print "  " + Short Ptr(rp)[1]
+	'	Print "SETTABSI //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET, tabvp:Byte Ptr = varp + rp[0]
 		Local key:Long ; Double Ptr(Varptr(key))[0] = Short Ptr(rp)[1]
-		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], key, varp[rp[1]])
+		If Int Ptr(tabvp)[1] = BlueTypeTag.TBLBOX
+			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(Byte Ptr Ptr(tabvp)[0], key, Varptr(keyslot))
+			If Not (slot = Null Or (keyslot And keyslot[0] <> key)) Then slot[0] = varp[rp[1]] ; Return
+		EndIf
+		NewindexMetamethod bc, retptr, Long Ptr(tabvp)[0], varp[rp[1]], key
 	End Function
 	Function GETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "GETTABI  //"
+	'	Print "GETTABI  //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Local tabp:Byte Ptr = varp + rp[1]
-		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
-		Local val:Long = BlueTable.RawGet(Byte Ptr Ptr(tabp)[0], varp[rp[2]])
-		varp[rp[0]] = val
+		Local tabvp:Byte Ptr = varp + rp[1], key:Long = varp[rp[2]]
+		If Int Ptr(tabvp)[1] = BlueTypeTag.TBLBOX
+			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(Byte Ptr Ptr(tabvp)[0], key, Varptr(keyslot))
+			If Not (slot = Null Or (keyslot And keyslot[0] <> key)) Then varp[rp[0]] = slot[0] ; Return
+		EndIf
+		IndexMetamethod bc, retptr, varp + rp[0], Long Ptr(tabvp)[0], key
 	End Function
 	Function SETTABI(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "SETTABI  //"
+	'	Print "SETTABI  //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
-		Local tabp:Byte Ptr = varp + rp[0]
-		Print "  " + Double Ptr(varp)[rp[2]] + " " + Double Ptr(varp)[rp[1]]
-		Print "  tag: " + Bin(Int Ptr(varp + rp[2])[1])
-		BlueTable.RawSet(vm.mem, Byte Ptr Ptr(tabp)[0], varp[rp[2]], varp[rp[1]])
+		Local tabvp:Byte Ptr = varp + rp[0], key:Long = varp[rp[2]]
+		If Int Ptr(tabvp)[1] = BlueTypeTag.TBLBOX
+			Local keyslot:Long Ptr = Null, slot:Long Ptr = BlueTable.GetSlot(Byte Ptr Ptr(tabvp)[0], key, Varptr(keyslot))
+			If Not (slot = Null Or (keyslot And keyslot[0] <> key)) Then slot[0] = varp[rp[1]] ; Return
+		EndIf
+		NewindexMetamethod bc, retptr, Long Ptr(tabvp)[0], varp[rp[1]], key
 	End Function
 	Function GETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "GETUPV   //"
+	'	Print "GETUPV   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Print "  " + rp[0] + " " + rp[1] + " " + rp[2]
-		DebugStop
 		Local upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC), valp:Long Ptr = Long Ptr(upvp[rp[1]])
 		varp[rp[0]] = valp[0]
 	End Function
 	Function GETENV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)	'"unlisted" instruction: GETUPV for _ENV is translated into this at load-time
-		Print "GETENV   //"
+	'	Print "GETENV   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		Print "  " + rp[0] + " " + Hex(Int Ptr(rp + 1)[0])
-		'need a type check
-		varp[rp[0]] = Long Ptr Ptr(rp + 1)[0][0]
+		varp[rp[0]] = Long Ptr Ptr(rp + 1)[0][0]	'type check should not be necessary (will be handled by following op)
 	End Function
 	Function SETUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "SETUPV   //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		Local upvp:Byte Ptr Ptr = Byte Ptr Ptr(Byte Ptr(stk) + STACKFRAME_INC), valp:Long Ptr = Long Ptr(upvp[rp[0]])
+		vm.mem.Write(valp, varp[rp[1]])
 	End Function
 	Function NEWTAB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "NEWTAB   //"
+	'	Print "NEWTAB   //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		Local tab:Byte Ptr = vm.mem.AllocTable(Null)
 		Local d:Int Ptr = Int Ptr(varp + rp[0])
-		d[0] = Int(tab) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.TBL
+		d[0] = Int(tab) ; d[1] = BlueTypeTag.TBLBOX
 	End Function
 	Function CLOSURE(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "CLOSURE  //"
@@ -273,7 +285,7 @@ Type BlueJIT Final
 			EndIf
 		Next
 		
-		d[0] = Int(closure) ; d[1] = BlueTypeTag.NANBOX | BlueTypeTag.FUN
+		d[0] = Int(closure) ; d[1] = BlueTypeTag.FUNBOX
 	End Function
 	Function NEWUPV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "NEWUPV   //"
@@ -458,8 +470,21 @@ Type BlueJIT Final
 		Return True	'all good and will auto-call when the caller returns
 	End Function
 	
-	Function Metamethod(op:Int, bc:Bytecode, retptr:Byte Ptr, d:Long Ptr, r:Long Ptr, l:Long Ptr)	'prep but not execute a call
+	Function IndexMetamethod(bc:Bytecode, retptr:Byte Ptr, d:Long Ptr, tbl:Long, key:Long)	'prep but not execute a call
 		'need to work out a way to return values from this without POSTCALL (maybe can co-opt RET to handle singles by itself)
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+		vm.Error("metamethod access isn't implemented yet")
+	End Function
+	Function NewindexMetamethod(bc:Bytecode, retptr:Byte Ptr, d:Long, val:Long, key:Long)	'as above
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
+	'	vm.Error("metamethod access isn't implemented yet")
+		'just rawset it for now
+		'remember to handle nil key (what is correct?)
+		Local tabp:Byte Ptr = Byte Ptr(Int(d))
+		BlueTable.RawSet(vm.mem, tabp, key, val)
+	End Function
+	
+	Function BinopMetamethod(op:Int, bc:Bytecode, retptr:Byte Ptr, d:Long Ptr, r:Long Ptr, l:Long Ptr)	'as above
 		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(bc.vm)
 		vm.Error("metamethod access isn't implemented yet")
 	End Function
