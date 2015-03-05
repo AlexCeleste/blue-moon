@@ -68,4 +68,4 @@ end
 local x = "foo".."bar"
 print(x.."baz")
 --]]
-local x = #{1, 2, 3}
+--local x = #{1, 2, 3}	-- trigger a VM exception
