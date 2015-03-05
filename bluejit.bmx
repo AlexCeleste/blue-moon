@@ -320,16 +320,70 @@ Type BlueJIT Final
 		EndIf
 	End Function
 	Function MUL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "MUL      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0])
+		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.MUL, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] * Double Ptr(r)[0]
+		EndIf
 	End Function
 	Function DIV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "DIV      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0])
+		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.DIV, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] / Double Ptr(r)[0]
+		EndIf
 	End Function
 	Function NMOD(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "NMOD      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0])
+		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.NMOD, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] Mod Double Ptr(r)[0]
+		EndIf
 	End Function
 	Function POW(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "POW      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0])
+		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.POW, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] ^ Double Ptr(r)[0]
+		EndIf
 	End Function
 	Function CAT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "CAT      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Int Ptr = Int Ptr(varp + rp[0]), r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] <> BlueTypeTag.STRBOX Or r[1] <> BlueTypeTag.STRBOX
+			BinopMetamethod opc.CAT, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			l = Int Ptr Ptr(l)[0] ; r = Int Ptr Ptr(r)[0]
+			Local chars:Short[l[0] + r[0]]
+			For Local c:Int = 0 Until l[0]
+				chars[c] = Short Ptr(l + 2)[c]
+			Next
+			For Local c:Int = l[0] Until l[0] + r[0]
+				chars[c] = Short Ptr(r + 2)[c - l[0]]
+			Next
+			Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
+			Byte Ptr Ptr(d)[0] = vm.mem.AllocString(chars.Length, Short Ptr(chars))
+			d[1] = BlueTypeTag.STRBOX
+		EndIf
 	End Function
-	Function IDIV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	Function IDIV(stk:Stack, bc:Bytecode, retptr:Byte Ptr)	'integer operations aren't accessible yet so ignore them
 	End Function
 	Function BAND(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
