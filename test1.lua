@@ -47,7 +47,7 @@ local y = 3 + addtriple(12, 14, 19)	--test values _ENV.addtriple and _ENV.ret3
 local a, b, c = ret3()
 local z = a + b + c
 --]]
---[ [
+--[[
 print "hello from Lua!"	--real library print
 print("foo", "bar")
 print(6, print)
@@ -57,4 +57,12 @@ print(rawget(x, 'a'))
 rawset(x, 'b', 17)
 print(x.b)
 print(_VERSION)
+--]]
+--[ [
+for i = 1, 5 do
+	print(i)
+end
+for i = 1, 10, 2 do
+	print(i)
+end
 --]]
