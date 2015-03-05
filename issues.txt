@@ -49,3 +49,4 @@ WISHLIST (will do after release 0.1):
 - implement some operations in assembly and import
 
 - string interning?
+- x64/ARM ports
