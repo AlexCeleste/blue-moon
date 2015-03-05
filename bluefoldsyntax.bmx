@@ -400,13 +400,13 @@ Type ConstantFold	'fold constant math and logic operations
 		If test And ((test.key = "bconst" And test.val = "false") Or (test.key = "nil")) Then Return Null
 		Return n
 	End Method
-	Method RepeatS:Node(n:Rose)	'replace repeat...until(true) with a while and replace ...until(false) with a block
+	Method RepeatS:Node(n:Rose)	'replace repeat...until(false) with a while
 		Local t:Leaf = Leaf(n.Get("test"))
 		If t
 			If t.key = "nil" Or (t.key = "bconst" And t.val = "false")
 				Return Rose.Make("WhileS", [Node(Leaf.Make("bconst", "true")), n.Get("block")], ["test", "block"])
-			ElseIf t.key = "dconst" Or t.key = "sconst" Or (t.key = "bconst" And t.val = "true")
-				Return n.Get("block")
+		'	ElseIf t.key = "dconst" Or t.key = "sconst" Or (t.key = "bconst" And t.val = "true")
+		'		Return n.Get("block")
 			EndIf
 		EndIf
 		Return n
