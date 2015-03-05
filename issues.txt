@@ -1,10 +1,8 @@
 
 TODO (minimal, for preview):
 
-- *framework* for metamethod lookup (i.e. defer to lookup on overload)
-- operators and instructions need to be filled out
-  - instructions need type checks
 - basic invocation framework with native exception handling
+- tcall and the other calling operators need to be implemented
 - eden gc needs to be implemented
 
 
@@ -25,6 +23,7 @@ TODO ("working", to call it implemented):
 - standard library needs to be written
 - coroutines need to be designed and implemented
 - need to fix (completely rewrite) the MOV-optimizer
+- add constant folds for while and repeat
 - pass the official test suite
 
 

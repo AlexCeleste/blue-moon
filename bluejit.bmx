@@ -304,7 +304,6 @@ Type BlueJIT Final
 		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
 			BinopMetamethod opc.ADD, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
 		Else
-			Print "  " + Double Ptr(l)[0] + " " + Double Ptr(r)[0]
 			d[0] = Double Ptr(l)[0] + Double Ptr(r)[0]
 		EndIf
 	End Function
@@ -396,14 +395,39 @@ Type BlueJIT Final
 	Function BSHR(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
 	Function UNM(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "UNM      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0]), arg:Int Ptr = Int Ptr(varp + rp[1])
+		If arg[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.UNM, bc, retptr, Long Ptr(d), Long Ptr(arg), Null	'not really worth having an UnopMetamethod
+		Else
+			d[0] = -Double Ptr(arg)[0]
+		EndIf
 	End Function
 	Function LNOT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "LNOT     //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Int Ptr = Int Ptr(varp + rp[0]), arg:Int Ptr = Int Ptr(varp + rp[1])
+		If arg[1] = BlueTypeTag.NILBOX Or (arg[1] = BlueTypeTag.BOOLBOX And arg[0] = 0) Then d[0] = 0 Else d[0] = 1
+		d[1] = BlueTypeTag.BOOLBOX
 	End Function
 	Function ALEN(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "ALEN     //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Long Ptr = varp + rp[0], arg:Int Ptr = Int Ptr(varp + rp[1])
+		BinopMetamethod opc.ALEN, bc, retptr, d, Long Ptr(arg), Null	'len defaults to meta even if normal is possible
 	End Function
-	Function BNOT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	Function BNOT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)	'integer operations aren't accessible yet so ignore them
 	End Function
 	Function UNP(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "UNP      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Long Ptr = varp + rp[0], arg:Int Ptr = Int Ptr(varp + rp[1])
+		If arg[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.UNP, bc, retptr, d, Long Ptr(arg), Null
+		Else
+			d[0] = Long Ptr(arg)[0]
+		EndIf
 	End Function
 	Function EQ(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "EQ       //"
