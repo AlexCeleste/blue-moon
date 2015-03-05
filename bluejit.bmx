@@ -297,18 +297,27 @@ Type BlueJIT Final
 	End Function
 	
 	Function ADD(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
-		Print "ADD      //"
+	'	Print "ADD      //"
 		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
 		Local d:Double Ptr = Double Ptr(varp + rp[0])
 		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
 		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
-			DebugStop
+			BinopMetamethod opc.ADD, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
 		Else
 			Print "  " + Double Ptr(l)[0] + " " + Double Ptr(r)[0]
 			d[0] = Double Ptr(l)[0] + Double Ptr(r)[0]
 		EndIf
 	End Function
 	Function SUB(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "SUB      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Double Ptr = Double Ptr(varp + rp[0])
+		Local r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.SUB, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] - Double Ptr(r)[0]
+		EndIf
 	End Function
 	Function MUL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	End Function
@@ -344,14 +353,33 @@ Type BlueJIT Final
 	End Function
 	Function EQ(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "EQ       //"
-		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
-		Local r:Double = Double Ptr(varp)[rp[1]]
-		Local l:Double = Double Ptr(varp)[rp[2]]
-		Int Ptr(varp + rp[0])[0] = l = r
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Int Ptr = Int Ptr(varp + rp[0]), r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.EQ, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] = Double Ptr(r)[0] ; d[1] = BlueTypeTag.BOOLBOX
+		EndIf
 	End Function
 	Function LT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "LT       //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Int Ptr = Int Ptr(varp + rp[0]), r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.LT, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] < Double Ptr(r)[0] ; d[1] = BlueTypeTag.BOOLBOX
+		EndIf
 	End Function
 	Function LEQ(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "LEQ      //"
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local d:Int Ptr = Int Ptr(varp + rp[0]), r:Int Ptr = Int Ptr(varp + rp[1]), l:Int Ptr = Int Ptr(varp + rp[2])
+		If l[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX Or r[1] & BlueTypeTag.NANBOX_CHK = BlueTypeTag.NANBOX
+			BinopMetamethod opc.LEQ, bc, retptr, Long Ptr(d), Long Ptr(r), Long Ptr(l)
+		Else
+			d[0] = Double Ptr(l)[0] <= Double Ptr(r)[0] ; d[1] = BlueTypeTag.BOOLBOX
+		EndIf
 	End Function
 	
 	Function JMP(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
@@ -359,13 +387,17 @@ Type BlueJIT Final
 	End Function
 	Function JIF(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "JIF      //"
-		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET
-		If Int Ptr(stk.varp + rp[0])[0]
-			Local target:Int = Int Ptr(rp + 1)[0]
-			Int Ptr(retptr)[-4] = target
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET, valp:Int Ptr = Int Ptr(stk.varp + rp[0])
+		If valp[1] <> BlueTypeTag.NILBOX And Not(valp[1] = BlueTypeTag.BOOLBOX And valp[0] = 0)
+			Local target:Int = Int Ptr(rp + 1)[0] ; Int Ptr(retptr)[-4] = target
 		EndIf
 	End Function
 	Function JNOT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+	'	Print "JNOT     //"
+		Local rp:Byte Ptr = (Byte Ptr Ptr(retptr) - 4)[0] + IP_OFFSET, valp:Int Ptr = Int Ptr(stk.varp + rp[0])
+		If valp[1] = BlueTypeTag.NILBOX Or (valp[1] = BlueTypeTag.BOOLBOX And valp[0] = 0)
+			Local target:Int = Int Ptr(rp + 1)[0] ; Int Ptr(retptr)[-4] = target
+		EndIf
 	End Function
 	Function CALL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "CALL     //"
@@ -376,6 +408,8 @@ Type BlueJIT Final
 		EndIf
 	End Function
 	Function TCALL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		'implement this properly
+		CALL(stk, bc, retptr)
 	End Function
 	Function RET:Byte Ptr(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "RET      //"
@@ -397,23 +431,32 @@ Type BlueJIT Final
 		EndIf
 	End Function
 	Function RETVA(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
+		vm.Error("vararg return not yet implemented")
 	End Function
 	Function POSTCALL(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
 	'	Print "POSTCALL //"
-		Local varp:Long Ptr = stk.varp
-		Local rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
-		
-		For Local r:Int = 0 Until Min(Int Ptr(rp + 1)[0], stk.retc)
+		Local varp:Long Ptr = stk.varp, rp:Byte Ptr = Byte Ptr Ptr(retptr)[-4] + IP_OFFSET
+		Local rneed:Int = Int Ptr(rp + 1)[0], rmin:Int = Min(rneed, stk.retc)
+		For Local r:Int = 0 Until rmin
 			(varp + rp[0])[r] = stk.retv[r]
 		'	Print "  return " + r + ": " + Double Ptr(stk.retv)[r]
 		Next
-		'nil the rest
+		For Local r:Int = rmin Until rneed	'nil the rest
+			(varp + rp[0])[r] = BlueVMMemory.NIL
+		Next
 	End Function
 	Function VARARG(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
+		vm.Error("varargs not yet implemented")
 	End Function
 	Function VAINIT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
+		vm.Error("vararg initialization not yet implemented")
 	End Function
 	Function CALLINIT(stk:Stack, bc:Bytecode, retptr:Byte Ptr)
+		Local convert:BlueVM(p:Byte Ptr) = Byte Ptr(Identity), vm:BlueVM = convert(stk.func.vm)
+		vm.Error("variable-length call initialization not yet implemented")
 	End Function
 	
 	
