@@ -155,7 +155,7 @@ Type BlueVM
 	End Method
 	
 	Method Error(msg:String)
-		Throw "[temporary error framework]: " + msg
+		Throw BlueInterpretError.Make("[temporary error framework]: " + msg)
 	End Method
 	
 	Method NewTable:BlueLuaVal()

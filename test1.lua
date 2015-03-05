@@ -58,7 +58,7 @@ rawset(x, 'b', 17)
 print(x.b)
 print(_VERSION)
 --]]
---[ [
+--[[
 for i = 1, 5 do
 	print(i)
 end
@@ -68,3 +68,4 @@ end
 local x = "foo".."bar"
 print(x.."baz")
 --]]
+local x = #{1, 2, 3}

@@ -37,12 +37,11 @@ stk.retv = Null
 stk.argc = 0
 stk.retc = 0
 
-Print "running..."
-Local t:Int = MilliSecs()
-Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
-t = MilliSecs() - t
-Print t
-Print "run complete"
+Try
+	Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
+Catch err:BlueError
+	Print err.ToString()
+End Try
 
 
 Print "done."
