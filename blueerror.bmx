@@ -13,6 +13,14 @@ Type BlueError Abstract
 	End Method
 End Type
 
+Type BlueFileError Extends BlueError
+	Function Make:BlueFileError(msg:String)
+		Local e:BlueFileError = New Self
+		e.msg = "error loading file; " + msg
+		Return e
+	End Function
+End Type
+
 Type BlueCompileError Extends BlueError
 	Function Make:BlueCompileError(t:TToken, msg:String)
 		Local e:BlueCompileError = New Self

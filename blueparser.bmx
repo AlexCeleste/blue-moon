@@ -12,7 +12,8 @@ Function BlueParseFile:TParseNode(file:String)
 	If _parser = Null Then _parser = New BlueParser
 	If _lexer = Null Then _lexer = BlueLexer.Get()
 	
-	If FileType(file) = 0 Then Throw "File '" + file + "' does not exist" ElseIf FileType(file) <> 1 Then Throw "'" + file + "' is not a valid source file"
+	If FileType(file) = 0 Then Throw BlueFileError.Make("file '" + file + "' does not exist") ..
+	  ElseIf FileType(file) <> 1 Then Throw BlueFileError.Make("'" + file + "' is not a valid source file")
 	Local toks:TToken[] = _lexer.ScanFile(file)
 	
 	For Local i:Int = 0 Until toks.Length	'Normalize token stream
