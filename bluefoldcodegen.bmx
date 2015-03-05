@@ -182,9 +182,9 @@ Type CompileFold
 			Case "dotdot" ; op = opc.CAT
 			
 			Case "lt"     ; op = opc.LT
-			Case "gt"     ; op = opc.LEQ
+			Case "gt"     ; op = opc.LT
 			Case "leq"    ; op = opc.LEQ
-			Case "geq"    ; op = opc.LT
+			Case "geq"    ; op = opc.LEQ
 			Case "eq"     ; op = opc.EQ
 			Case "neq"    ; op = opc.EQ
 		End Select
