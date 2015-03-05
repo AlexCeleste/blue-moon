@@ -1,7 +1,6 @@
 
 TODO (minimal, for preview):
 
-- basic invocation framework with native exception handling
 - tcall and the other calling operators need to be implemented
 - eden gc needs to be implemented
 
@@ -13,6 +12,7 @@ TODO ("working", to call it implemented):
   - split the JIT and operator modules
 - code buffer allocation needs to be completed
 - stack overflow needs to be caught
+- fix VM call-in
 - generational gc needs to be implemented
   - allocator needs to be tidied up
   - remaining object layouts need to be specified and stuck to

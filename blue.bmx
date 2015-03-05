@@ -23,26 +23,13 @@ Const outFile:String = "out.lua.so"
 
 Print BlueCompiler.ShowBytecode(file)
 
-Local code:BlueBinary = BlueCompiler.CompileFileForLoad(file)
-Local vm:BlueVM = New BlueVM
-Local tl:BlueLuaVal = vm.LoadObjectCode(code)
-
-Local stk:Stack = BlueJIT.BPtoS(vm.mem.stack)
-stk.retIP = Null ; stk.prevBase = Null
-Local vc:Int = 10, upvars:Int = 1
-stk.varp = Long Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
-stk.func = vm.funIndex[0]
-stk.argv = Null	'may want to add space?
-stk.retv = Null
-stk.argc = 0
-stk.retc = 0
-
 Try
-	Local test:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; test(stk)
+	Local code:BlueBinary = BlueCompiler.CompileFileForLoad(file)
+	Local vm:BlueVM = New BlueVM
+	vm.LoadObjectCode(code)
 Catch err:BlueError
 	Print err.ToString()
 End Try
-
 
 Print "done."
 End

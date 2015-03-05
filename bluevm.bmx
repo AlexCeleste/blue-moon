@@ -78,7 +78,7 @@ Type BlueVM
 	End Method
 	
 	' Load the procedures and constants of a compiled binary into the VM, returning the function representing the program toplevel
-	Method LoadObjectCode:BlueLuaVal(code:BlueBinary)
+	Method LoadObjectCode(code:BlueBinary)
 		Local buf:Int[] = code.buf
 		Local fcount:Int = buf[0], kcount:Int = buf[1], ktblpos:Int = buf[2], ktbl:Long[kcount]
 		Local convert:Byte Ptr(o:Object) = Byte Ptr(BlueJIT.Identity)
@@ -133,8 +133,9 @@ Type BlueVM
 			funIndex[idMod + f] = b
 		Next
 		
+		Local f:Long ; Byte Ptr Ptr(Varptr(f))[0] = Byte Ptr(funindex[idMod]) ; Int Ptr(Varptr(f))[1] = BlueTypeTag.FUNBOX
+		Call(f)
 		idMod :+ fcount
-		Return New BlueLuaVal
 	End Method
 	
 	Method ExtendFunIndex(sz:Int)	'hack: BlitzMax has a bug with arrays of extern types! so we need to use C-style arrays for now
@@ -151,7 +152,17 @@ Type BlueVM
 		funIndex = newFI ; _fiSz = sz
 	End Method
 	
-	Method CallToLua()
+	Method Call:Long(fun:Long)
+		'FIXME: typecheck fun
+		Local stk:Stack = BlueJIT.BPtoS(mem.stack)
+		stk.retIP = Null ; stk.prevBase = Null
+		Local vc:Int = 10, upvars:Int = 1	'FIXME: take correct upvars into account, not just assume _ENV
+		stk.varp = Long Ptr(Byte Ptr(stk) + BlueJIT.STACKFRAME_INC) + upvars
+		Byte Ptr Ptr(Varptr(stk.func))[0] = Byte Ptr(Int(fun))
+		stk.argv = Null	; stk.retv = Null	'may want to add space?
+		stk.argc = 0 ; stk.retc = 0
+		
+		Local f:Int(_:Byte Ptr) = stk.func.mcode - BlueJIT.PROLOGUESZ ; f(stk)
 	End Method
 	
 	Method Error(msg:String)
